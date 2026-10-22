@@ -18,7 +18,6 @@ import {
   JSONValue,
   valToBoolean,
   valToNumber,
-  valToDate,
   valToArray,
   valToString,
   FetchOpts,
@@ -533,31 +532,6 @@ export function useBoolean(
   }
 
   return [valToBoolean(value), set];
-}
-
-/**
- * Hook for getting a stringified representation of an Atom in a React
- * component. See {@link useValue}
- */
-export function useDate(
-  resource: Resource,
-  propertyURL: string,
-  opts?: useValueOptions,
-): Date | undefined {
-  const store = useStore();
-  const [value] = useValue(resource, propertyURL, opts);
-
-  if (value === undefined) {
-    return undefined;
-  }
-
-  try {
-    return valToDate(value);
-  } catch (e) {
-    store.notifyError(asError(e));
-
-    return;
-  }
 }
 
 /**
