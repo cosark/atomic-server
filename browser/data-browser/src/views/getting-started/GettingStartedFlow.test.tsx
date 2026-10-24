@@ -247,7 +247,7 @@ it.each([true, false])(
   },
 );
 
-it('starts with a real local identity and lands on the Welcome document, without a nudge', async () => {
+it('starts with a real local identity and lands on the Welcome drive page, without a nudge', async () => {
   await show();
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Get started' }));
@@ -260,7 +260,7 @@ it('starts with a real local identity and lands on the Welcome document, without
   );
   expect(state.setDrive).toHaveBeenCalledWith('did:ad:welcome');
   expect(state.navigate).toHaveBeenCalledWith(
-    '/app/show?subject=did:ad:welcomedoc',
+    '/app/show?subject=did:ad:welcome',
   );
   expect(state.nudge).not.toHaveBeenCalled();
 });
