@@ -109,6 +109,27 @@ void main() {
     expect(find.byKey(const Key('drive-switcher')), findsNothing);
   });
 
+  testWidgets('one swipe from the selector to a drive switches to it',
+      (tester) async {
+    final api = _Api({});
+    await tester.pumpWidget(app(ChatsScreen(drive: 'did:ad:home', api: api)));
+    await tester.pumpAndSettle();
+
+    final switcher = find.byKey(const Key('current-drive-switch'));
+    final gesture = await tester.startGesture(tester.getCenter(switcher));
+    // No wait: moving the finger opens the list at once.
+    await gesture.moveBy(const Offset(0, 20));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.moveTo(tester.getCenter(find.text('Work')));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(api.activeSet, ['did:ad:work']);
+    expect(_header(tester), 'Work');
+  });
+
   testWidgets('a tap on the selector still opens the switcher', (tester) async {
     final api = _Api({});
     await tester.pumpWidget(app(ChatsScreen(drive: 'did:ad:home', api: api)));

@@ -160,8 +160,10 @@ class AppBottomBar extends StatelessWidget {
                             tooltip: 'Home',
                             selected: homeCurrent,
                             menuLabel: 'Home sections',
-                            // A tap goes home; swipe or hold for a section.
+                            // A tap goes home (already there, it opens the
+                            // sections); swipe or hold for a section.
                             opensOnDown: true,
+                            tapOpensMenu: onHome == null,
                             defaultIndex: null,
                             onTap: onHome,
                             items: [

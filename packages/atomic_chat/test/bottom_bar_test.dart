@@ -127,6 +127,20 @@ void main() {
     expect(_controller(tester).driveSwitcher.value, isFalse);
   });
 
+  testWidgets('on Home a tap on Home opens the sections, as a hold does',
+      (tester) async {
+    await tester.pumpWidget(_shell(_BarApi()));
+    await tester.pumpAndSettle();
+    expect(_current('Home'), isTrue);
+    final title = find.text(HomeSection.values.last.title);
+    final before = title.evaluate().length;
+    await tester.tap(find.byTooltip('Home'));
+    await tester.pumpAndSettle();
+    // The sections card: every section once more.
+    expect(title.evaluate().length, before + 1);
+    expect(_current('Home'), isTrue);
+  });
+
   testWidgets('the bar has no Settings button: the user panel holds it',
       (tester) async {
     await tester.pumpWidget(_shell(_BarApi()));

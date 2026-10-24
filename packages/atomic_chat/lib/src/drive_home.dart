@@ -113,7 +113,8 @@ class CurrentDriveHeader extends StatelessWidget {
     return HoldFan<DriveInfo>(
       key: key,
       onTap: onTap,
-      cardMenu: true,
+      // The bottom bar's gesture: swipe or hold, drag to a drive, let go.
+      opensOnDown: true,
       defaultIndex: null,
       menuLabel: 'Recent drives',
       borderRadius: BorderRadius.circular(8),
