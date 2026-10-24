@@ -2,11 +2,14 @@ import 'package:atomic_flutter/atomic_flutter.dart'
     show Perf, normalizeServerUrl;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:atomic_chat/atomic_chat.dart' show AtomicWordmark;
+import 'package:atomic_chat/atomic_chat.dart'
+    show AtomicWordmark, WelcomeDrive, WelcomeDriveBuilder;
 import 'package:atomic_flutter/atomic_flutter.dart' as shared;
 import 'package:url_launcher/url_launcher.dart';
+import '../assistant/atomic_assistant_api.dart';
 import '../atomic/account_store.dart';
 import '../atomic/atomic_client.dart';
+import '../atomic/get_started.dart';
 import '../atomic/session.dart';
 import '../atomic/switch_account.dart';
 import '../theme.dart';
@@ -17,6 +20,20 @@ import '../atomic/sync_failure.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoggedIn;
+
+  /// "Get started" made a new identity: the app opens in [NewIdentity.drive]
+  /// and, when the Welcome drive was made, on its Welcome document. Called
+  /// just before [onLoggedIn].
+  final ValueChanged<NewIdentity>? onStarted;
+
+  /// Test seam: makes the Welcome drive of a new identity (by default the
+  /// web's own, run by the embedded page).
+  @visibleForTesting
+  final Future<WelcomeDrive> Function(String personalDrive)? buildWelcome;
+
+  /// Test seam: the whole of "Get started" (identity, drives, session).
+  @visibleForTesting
+  final Future<NewIdentity> Function()? startIdentity;
 
   /// Signs in with the person's atomic.place account and returns the identity
   /// its backup holds; null when cancelled. Replaceable in tests.
@@ -45,6 +62,9 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen(
       {super.key,
       required this.onLoggedIn,
+      this.onStarted,
+      this.buildWelcome,
+      this.startIdentity,
       this.accountSignIn,
       this.accountClient,
       this.openBrowser,
@@ -56,13 +76,24 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-enum _Step { loading, welcome, createAgent, showSecret, signIn, needsSync }
+enum _Step {
+  loading,
+  welcome,
+
+  /// "Sign in": the ways to sign in, one tap each.
+  signInOptions,
+
+  /// Signing in with a pasted secret.
+  signIn,
+
+  /// "Get started" is making the identity and its drives.
+  starting,
+  needsSync,
+}
 
 class _LoginScreenState extends State<LoginScreen> {
   _Step _step = _Step.loading;
-  final _nameController = TextEditingController(text: '');
   final _secretController = TextEditingController();
-  final _shownSecretController = TextEditingController();
   final _accountNameController = TextEditingController(text: 'atomic.place');
   // A secret is hidden by default — it is a password. A reveal toggle lets
   // someone check a value they typed or pasted.
@@ -71,8 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   bool _busy = false;
 
-  // After setup
-  String? _generatedSecret;
   bool _peerSyncAttempted = false;
 
   /// What the sync step is doing right now, while it is busy.
@@ -85,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     if (widget.switchAccount) {
-      _step = _Step.welcome;
+      _step = _Step.signInOptions;
     } else {
       _tryAutoLogin();
     }
@@ -100,15 +129,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Where "back" leaves to: the welcome, or while switching accounts (which
+  /// makes no new identity) the ways to sign in.
+  _Step get _home => widget.switchAccount ? _Step.signInOptions : _Step.welcome;
+
   /// Names of the drives that came along.
   List<String> _broughtAlong = const [];
 
   @override
   void dispose() {
-    _nameController.dispose();
     _secretController.dispose();
     _accountNameController.dispose();
-    _shownSecretController.dispose();
     _serverController.dispose();
     super.dispose();
   }
@@ -116,21 +147,6 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Normalized, so `localhost:9883` works as typed — the same rule the
   /// server settings use. Empty stays empty: no hub is a valid choice.
   String get _serverOrigin => normalizeServerUrl(_serverController.text);
-
-  /// Open WS sync to the server (primary path for multi-device).
-  Future<void> _startNetworking(String driveSubject,
-      {String? serverUrl}) async {
-    final origin =
-        (serverUrl != null && serverUrl.isNotEmpty) ? serverUrl : _serverOrigin;
-    // A local-only identity (Get Started without a server) has nothing to
-    // connect to; asking anyway failed on `ws:///ws`.
-    if (origin.isEmpty) return;
-    try {
-      await AtomicClient.openWsSync(origin);
-    } catch (e) {
-      debugPrint('WS sync failed (offline?): $e');
-    }
-  }
 
   /// True when the active drive exists in the local DB (name property readable).
   Future<bool> _driveReady() async {
@@ -252,41 +268,49 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ── Step: Create Agent ──────────────────────────────────────────────
+  // ── Get started ─────────────────────────────────────────────────────
 
-  Future<void> _doSetup() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _error = 'Enter a name');
-      return;
-    }
-
+  /// A new identity on this device, its personal drive and the Welcome drive,
+  /// then straight into the app. No form and no secret to read first: the
+  /// secret is kept on the device, and Sync → Copy secret key gives it for
+  /// another device.
+  Future<void> _getStarted() async {
     setState(() {
       _busy = true;
       _error = null;
+      _step = _Step.starting;
     });
     try {
-      final result = await AtomicClient.setup(name);
-      await AtomicSession.save(
-        serverUrl: _serverOrigin,
-        secret: result.agentSecret,
-        drive: result.driveSubject,
-      );
-
-      await _startNetworking(result.driveSubject, serverUrl: _serverOrigin);
-
-      setState(() {
-        _generatedSecret = result.agentSecret;
-        _step = _Step.showSecret;
-        _busy = false;
-      });
+      final made = await (widget.startIdentity ?? _startIdentity)();
+      if (!made.secretStored && mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Couldn\u2019t save your sign-in on this device; '
+                'you\u2019ll need to sign in again next time'),
+          ),
+        );
+      }
+      widget.onStarted?.call(made);
+      _done();
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _busy = false;
-      });
+      debugPrint('Get started: $e');
+      if (mounted) {
+        setState(() {
+          _error = signInError(e);
+          _busy = false;
+          _step = _Step.welcome;
+        });
+      }
     }
   }
+
+  Future<NewIdentity> _startIdentity() => startNewIdentity(
+        buildWelcome: widget.buildWelcome ??
+            (personal) => WelcomeDriveBuilder(
+                  api: const AtomicAssistantApi(),
+                  timeout: const Duration(seconds: 45),
+                ).build(personal),
+      );
 
   // ── Step: Sign In ───────────────────────────────────────────────────
 
@@ -461,8 +485,9 @@ class _LoginScreenState extends State<LoginScreen> {
   /// The steps the system back leaves for the welcome screen, as their own
   /// back arrows do; elsewhere back leaves the app.
   static const _backToWelcome = {
-    _Step.createAgent,
+    _Step.signInOptions,
     _Step.signIn,
+    _Step.starting,
     _Step.needsSync,
   };
 
@@ -470,11 +495,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final c = context.appColors;
     return PopScope(
-      canPop: !_backToWelcome.contains(_step),
+      canPop: !_backToWelcome.contains(_step) ||
+          (widget.switchAccount && _step == _Step.signInOptions),
       onPopInvokedWithResult: (didPop, _) {
         if (didPop || _busy) return;
         setState(() {
-          _step = _Step.welcome;
+          // The secret field goes back to the ways to sign in.
+          _step = _step == _Step.signIn ? _Step.signInOptions : _home;
           _error = null;
         });
       },
@@ -514,10 +541,10 @@ class _LoginScreenState extends State<LoginScreen> {
             key: ValueKey('loading'), child: CircularProgressIndicator());
       case _Step.welcome:
         return _buildWelcome(c);
-      case _Step.createAgent:
-        return _buildCreateAgent(c);
-      case _Step.showSecret:
-        return _buildShowSecret(c);
+      case _Step.signInOptions:
+        return _buildSignInOptions(c);
+      case _Step.starting:
+        return _buildStarting(c);
       case _Step.signIn:
         return _buildSignIn(c);
       case _Step.needsSync:
@@ -527,6 +554,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ── Welcome ─────────────────────────────────────────────────────────
 
+  /// The same two choices as the web: Get started, and Sign in.
   Widget _buildWelcome(AppColors c) {
     return Column(
       key: const ValueKey('welcome'),
@@ -536,192 +564,106 @@ class _LoginScreenState extends State<LoginScreen> {
         const Center(
           child: AtomicWordmark(height: 40, alignment: Alignment.center),
         ),
-        const SizedBox(height: 16),
-        const SizedBox(height: 8),
+        const SizedBox(height: 24),
         Text(
           'Your data stays on this device.\nSync with others when you choose to.',
           style: TextStyle(fontSize: 14, color: c.iconDisabled),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 40),
-        if (!widget.switchAccount) ...[
-          ElevatedButton(
-            onPressed: () => setState(() {
-              _step = _Step.createAgent;
-              _error = null;
-            }),
-            style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14)),
-            child: const Text('Get Started'),
-          ),
-          const SizedBox(height: 12),
-        ],
-        OutlinedButton(
-          onPressed: () => setState(() {
-            _step = _Step.signIn;
-            _error = null;
-          }),
-          style: OutlinedButton.styleFrom(
+        ElevatedButton(
+          key: const ValueKey('get-started'),
+          onPressed: _busy ? null : _getStarted,
+          style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14)),
-          child: const Text('I have a secret — Sign In'),
+          child: const Text('Get started'),
         ),
         const SizedBox(height: 12),
         OutlinedButton(
-          key: const ValueKey('sign-in-with-account'),
-          onPressed: _busy ? null : _signInWithAccount,
+          key: const ValueKey('sign-in'),
+          onPressed: _busy
+              ? null
+              : () => setState(() {
+                    _step = _Step.signInOptions;
+                    _error = null;
+                  }),
           style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14)),
-          child: const Text('Sign in with atomic.place'),
+          child: const Text('Sign in'),
         ),
         _errorWidget(),
       ],
     );
   }
 
-  // ── Create Agent ────────────────────────────────────────────────────
+  // ── Starting ────────────────────────────────────────────────────────
 
-  Widget _buildCreateAgent(AppColors c) {
+  Widget _buildStarting(AppColors c) {
     return Column(
-      key: const ValueKey('create'),
+      key: const ValueKey('starting'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 24),
+        const Text('Setting up your workspace\u2026',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Text(
+          'Making your identity and a drive to look around in.',
+          style: TextStyle(fontSize: 13, color: c.iconDisabled),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // ── Sign in options ─────────────────────────────────────────────────
+
+  /// The ways to sign in, grouped under Sign in: the atomic.place account, or
+  /// a secret from another device.
+  Widget _buildSignInOptions(AppColors c) {
+    return Column(
+      key: const ValueKey('signin-options'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => setState(() {
-                _step = _Step.welcome;
-                _error = null;
-              }),
-            ),
-            const Text('Create your identity',
+            if (!widget.switchAccount)
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() {
+                  _step = _Step.welcome;
+                  _error = null;
+                }),
+              ),
+            const Text('Sign in',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'This creates a cryptographic identity and a personal drive to store your data.',
-          style: TextStyle(fontSize: 13, color: c.iconDisabled),
-        ),
         const SizedBox(height: 24),
-        // No sync address here: a new identity has no data anywhere to go and
-        // find, so asking where it syncs — before asking your name — is a
-        // question about plumbing at the one moment there is nothing to plumb.
-        // Settings has it, for when there is.
-        TextField(
-          controller: _nameController,
-          decoration: const InputDecoration(
-            labelText: 'Your name',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          autofocus: true,
-          textInputAction: TextInputAction.go,
-          onSubmitted: (_) => _doSetup(),
-        ),
-        const SizedBox(height: 16),
         ElevatedButton(
-          onPressed: _busy ? null : _doSetup,
+          key: const ValueKey('sign-in-with-account'),
+          onPressed: _busy ? null : _signInWithAccount,
           style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14)),
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Create'),
+          child: const Text('Sign in with atomic.place'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          key: const ValueKey('sign-in-with-secret'),
+          onPressed: _busy
+              ? null
+              : () => setState(() {
+                    _step = _Step.signIn;
+                    _error = null;
+                  }),
+          style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14)),
+          child: const Text('Sign in with a secret'),
         ),
         _errorWidget(),
-      ],
-    );
-  }
-
-  // ── Show Secret ─────────────────────────────────────────────────────
-
-  Widget _buildShowSecret(AppColors c) {
-    return Column(
-      key: const ValueKey('secret'),
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Icon(Icons.check_circle, color: Colors.green, size: 48),
-        const SizedBox(height: 16),
-        const Text(
-          'You\'re all set!',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: c.warningBg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: c.warningBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Save this secret: it is the only way to sign in as you on another device.',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              // A read-only password field, so a password manager can save the
-              // new secret (with the fixed account name) when this is left.
-              AutofillGroup(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Offstage(
-                      child: TextField(
-                        key: const ValueKey('secret-username'),
-                        controller: _accountNameController,
-                        readOnly: true,
-                        autofillHints: const [AutofillHints.username],
-                      ),
-                    ),
-                    TextField(
-                      key: const ValueKey('secret-password'),
-                      controller: _shownSecretController
-                        ..text = _generatedSecret ?? '',
-                      readOnly: true,
-                      maxLines: null,
-                      autofillHints: const [AutofillHints.newPassword],
-                      style: const TextStyle(
-                          fontSize: 11, fontFamily: 'monospace'),
-                      decoration: const InputDecoration.collapsed(hintText: ''),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: _generatedSecret!));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Copied to clipboard')),
-                  );
-                },
-                icon: const Icon(Icons.copy, size: 16),
-                label: const Text('Copy secret'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () {
-            // Leaving the form commits the autofill context: the manager
-            // offers to save the new secret.
-            TextInput.finishAutofillContext();
-            _done();
-          },
-          style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14)),
-          child: const Text('Continue'),
-        ),
       ],
     );
   }
@@ -740,11 +682,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () => setState(() {
-                    _step = _Step.welcome;
+                    _step = _Step.signInOptions;
                     _error = null;
                   }),
                 ),
-                const Text('Sign in',
+                const Text('Your secret',
                     style:
                         TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               ],
@@ -847,7 +789,7 @@ class _LoginScreenState extends State<LoginScreen> {
       onPair: () => _pairThenCheck(null),
       onPaste: _pasteNodeId,
       onBack: () => setState(() {
-        _step = _Step.welcome;
+        _step = _home;
         _error = null;
       }),
     );

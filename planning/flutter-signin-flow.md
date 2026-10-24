@@ -22,10 +22,14 @@ LoginScreen._tryAutoLogin (login_screen.dart:104)
                load_agent_from_secret; active drive = hint or derived personal drive;
                open_ws_sync(serverUrl) if set; "ok" iff the drive resource is local
       ok + name readable → home ;  else → needsSync
-welcome ─ Get Started → createAgent → setup() → showSecret → home
-        ─ I have a secret → signIn → _doSignIn (:266) → _signInWithSecret (:325)
-              AtomicSession.save → resumeSession → ok? home : needsSync
-        ─ Sign in with atomic.place → AccountLinkDialog → recoverIdentity → _signInWithSecret
+welcome ─ Get started → startNewIdentity (atomic/get_started.dart): setup() (identity + personal drive on the
+            Rust node) → AtomicSession.save → WelcomeDriveBuilder (hidden embed page runs the web's
+            startWelcomeDrive via atomicEmbed.startWelcome) → active drive = Welcome drive → AppShell(landOn:
+            Welcome document). Welcome drive failure/timeout (45 s) → lands in the personal drive.
+        ─ Sign in → signInOptions
+              ─ Sign in with a secret → signIn → _doSignIn → _signInWithSecret
+                    AtomicSession.save → resumeSession → ok? home : needsSync
+              ─ Sign in with atomic.place → AccountLinkDialog → recoverIdentity → _signInWithSecret
 needsSync (_buildNeedsSync :751 → _retryPeerSync :149)
   1. discoverHomeServer(drive) (atomic_client.dart:465): pkarr origins (≤12 s, Rust) → take(3) →
      parallel GET /genesis (4 s, 1 retry) → first verified → connect_home_server (Rust WS)

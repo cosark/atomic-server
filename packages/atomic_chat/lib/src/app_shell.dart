@@ -649,6 +649,10 @@ class AppShell extends StatefulWidget {
   /// The user's page the Profile button opens (see [ShellController.profile]).
   final WidgetBuilder? profile;
 
+  /// A resource to open on top of the home once the shell is up (the
+  /// first run lands on its Welcome document). Back leaves it for the home.
+  final ({String subject, String title})? landOn;
+
   const AppShell({
     super.key,
     required this.api,
@@ -656,6 +660,7 @@ class AppShell extends StatefulWidget {
     required this.home,
     this.profile,
     this.warmPool,
+    this.landOn,
   });
 
   @override
@@ -739,6 +744,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     warmDriveVisits();
     _shell.identityLoader = widget.api.ownIdentity;
     _shell.refreshIdentity();
+    final landOn = widget.landOn;
+    if (landOn != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.api.noteOpened(widget.drive, landOn.subject);
+        unawaited(_shell.openDetail<void>(
+          (_) => openResourceView(
+              api: widget.api,
+              drive: widget.drive,
+              subject: landOn.subject,
+              title: landOn.title),
+          subject: landOn.subject,
+        ));
+      });
+    }
     WidgetsBinding.instance.addObserver(this);
     HardwareKeyboard.instance.addHandler(_onKey);
   }

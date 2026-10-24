@@ -12,6 +12,8 @@
  *                     pre-loaded page: back then leaves the resource)
  *   changed(subjects) these resources changed in the host's store
  *   flush(leaving?)   hand every pending edit to the host; resolves when done
+ *   startWelcome(id, personalDrive)  the app's first run: build the Welcome
+ *                     drive (answered as a `welcomeResult` message)
  *
  * Page to host, besides the store's calls: `openNative(classUrl, subject, title)`
  * (`hostActions.ts`) asks the app to show the chat of a meeting or chat room in
@@ -160,6 +162,10 @@ declare global {
         method: 'tools' | 'prompt' | 'run' | 'changes' | 'accept' | 'revert',
         args?: unknown[],
       ): void;
+      /** The app's first run: builds the "Welcome to Atomic" drive for the
+       * identity it just made; answers with a `welcomeResult` message
+       * (`welcomeCall.ts`). */
+      startWelcome(id: number, personalDrive: string): void;
     };
   }
 }
@@ -434,6 +440,19 @@ window.atomicEmbed = {
   aiCall(id, method, args) {
     void import('./aiTools').then(({ aiCall }) =>
       aiCall(m => window.AtomicFlutter?.postMessage(m), id, method, args),
+    );
+  },
+  startWelcome(id, personalDrive) {
+    void import('./welcomeCall').then(({ welcomeCall }) =>
+      welcomeCall(
+        {
+          store,
+          flush: () => flush(),
+          post: m => window.AtomicFlutter?.postMessage(m),
+        },
+        id,
+        personalDrive,
+      ),
     );
   },
   openMenu(anchor) {

@@ -29,6 +29,7 @@ import 'package:atomic_flutter/atomic_flutter.dart'
     show AppScrollBehavior, Perf, withCalmInteraction;
 import 'theme.dart';
 import 'atomic/atomic_client.dart';
+import 'atomic/get_started.dart';
 import 'atomic/session.dart';
 import 'atomic/store_location.dart';
 import 'atomic/sync_notice_policy.dart';
@@ -101,6 +102,9 @@ class AtomicApp extends StatefulWidget {
 
 class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
   bool _loggedIn = false;
+
+  /// What "Get started" just made: the app opens on its Welcome document.
+  NewIdentity? _firstRun;
   late StoreRecoveryNotice? _storeRecovery = widget.storeRecovery;
   final _navKey = GlobalKey<NavigatorState>();
   static const _linkChannel = MethodChannel('app.atomicdata.app/deeplink');
@@ -355,6 +359,7 @@ class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
     _syncNotice.reset();
     setState(() {
       _loggedIn = false;
+      _firstRun = null;
     });
   }
 
@@ -426,11 +431,20 @@ class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
               onShare: _shareDamagedStore,
             )
           : !_loggedIn
-              ? LoginScreen(onLoggedIn: _onLoggedIn)
+              ? LoginScreen(
+                  onLoggedIn: _onLoggedIn,
+                  onStarted: (made) => _firstRun = made,
+                )
               : AppShell(
                   api: const AtomicAssistantApi(),
                   drive: AtomicClient.getActiveDrive() ?? '',
                   key: ValueKey('app-$_accountSwitches'),
+                  landOn: _firstRun?.landing == null
+                      ? null
+                      : (
+                          subject: _firstRun!.landing!,
+                          title: 'Welcome to Atomic'
+                        ),
                   profile: (_) =>
                       SyncScreen(onSignedInAsOther: _signedInAsOther),
                   home: ChatsScreen(

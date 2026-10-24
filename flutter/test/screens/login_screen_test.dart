@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:atomic_app/atomic/get_started.dart';
 import 'package:atomic_app/screens/login_screen.dart';
 import 'package:atomic_app/theme.dart';
 import 'package:atomic_flutter/atomic_flutter.dart' as shared;
@@ -37,10 +39,108 @@ void main() {
     expect(tester.getSize(find.byKey(const Key('atomic-wordmark'))).height, 40);
   });
 
+  testWidgets(
+      'the welcome screen has the web\'s two choices: Get started and '
+      'Sign in', (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+    expect(find.byType(ElevatedButton), findsOneWidget);
+    expect(find.byType(OutlinedButton), findsOneWidget);
+    expect(find.text('Get started'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    // The old form, secret reveal and separate sign-in buttons are gone.
+    expect(find.text('Create your identity'), findsNothing);
+    expect(find.text('Sign in with atomic.place'), findsNothing);
+    expect(find.text('I have a secret — Sign In'), findsNothing);
+
+    // Sign in groups the app's ways in: the account, and a secret.
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign in with atomic.place'), findsOneWidget);
+    expect(find.text('Sign in with a secret'), findsOneWidget);
+    expect(find.text('Get started'), findsNothing);
+  });
+
+  group('Get started', () {
+    Widget app({
+      required Future<NewIdentity> Function() startIdentity,
+      required List<String> events,
+      ValueChanged<NewIdentity>? onStarted,
+    }) =>
+        MaterialApp(
+          theme: ThemeData(extensions: const [AppColors.light]),
+          home: LoginScreen(
+            onLoggedIn: () => events.add('in'),
+            onStarted: (made) {
+              events.add('started ${made.landing}');
+              onStarted?.call(made);
+            },
+            startIdentity: startIdentity,
+          ),
+        );
+
+    testWidgets(
+        'goes straight into the app, without a form or a secret '
+        'screen, landing on the Welcome document', (tester) async {
+      final events = <String>[];
+      final gate = Completer<NewIdentity>();
+      await tester
+          .pumpWidget(app(startIdentity: () => gate.future, events: events));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Get started'));
+      await tester.pump();
+      // While it works: one calm screen, nothing to fill in.
+      expect(find.text('Setting up your workspace\u2026'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(events, isEmpty);
+
+      gate.complete(const NewIdentity(
+        personalDrive: 'did:ad:personal',
+        drive: 'did:ad:welcome',
+        landing: 'did:ad:welcome-doc',
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+      // The app learns where to land before it is told the person is in.
+      expect(events, ['started did:ad:welcome-doc', 'in']);
+      expect(find.text('You\'re all set!'), findsNothing);
+      expect(find.text('Continue'), findsNothing);
+    });
+
+    testWidgets('a failure comes back to the welcome screen with the reason',
+        (tester) async {
+      final events = <String>[];
+      await tester.pumpWidget(app(
+          startIdentity: () async => throw StateError('disk full'),
+          events: events));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Get started'));
+      await tester.pumpAndSettle();
+      expect(events, isEmpty);
+      expect(find.text('disk full'), findsOneWidget);
+      expect(find.text('Get started'), findsOneWidget);
+    });
+
+    testWidgets('system back does nothing while it works', (tester) async {
+      final gate = Completer<NewIdentity>();
+      await tester
+          .pumpWidget(app(startIdentity: () => gate.future, events: []));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Get started'));
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Setting up your workspace\u2026'), findsOneWidget);
+      gate.complete(const NewIdentity(personalDrive: 'p', drive: 'p'));
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+  });
+
   testWidgets('the secret field is autofill-friendly', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('I have a secret — Sign In'));
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in with a secret'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AutofillGroup), findsOneWidget);
@@ -50,9 +150,8 @@ void main() {
     expect(secret.obscureText, isTrue);
     expect(secret.enableSuggestions, isFalse);
     expect(secret.autocorrect, isFalse);
-    final user = tester.widget<TextField>(find.byKey(
-        const ValueKey('signin-username'),
-        skipOffstage: false));
+    final user = tester.widget<TextField>(
+        find.byKey(const ValueKey('signin-username'), skipOffstage: false));
     expect(user.autofillHints, [AutofillHints.username]);
     expect(find.text('Account'), findsNothing);
 
@@ -66,16 +165,23 @@ void main() {
         isFalse);
   });
 
-  testWidgets('system back on the sign-in step goes to the welcome screen',
-      (tester) async {
+  testWidgets(
+      'system back steps from the secret to the ways to sign in to '
+      'the welcome screen', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('I have a secret — Sign In'));
+    await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
-    expect(find.text('Get Started'), findsNothing);
+    await tester.tap(find.text('Sign in with a secret'));
+    await tester.pumpAndSettle();
+    expect(find.text('Get started'), findsNothing);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('Get Started'), findsOneWidget);
+    expect(find.text('Sign in with atomic.place'), findsOneWidget);
+    expect(find.text('Get started'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Get started'), findsOneWidget);
   });
 
   testWidgets('Sign in with atomic.place runs the account flow',
@@ -86,17 +192,21 @@ void main() {
       return null; // cancelled
     }));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in with atomic.place'));
     await tester.pumpAndSettle();
     expect(calls, 1);
-    // Cancelling leaves the welcome screen as it was.
-    expect(find.text('Get Started'), findsOneWidget);
+    // Cancelling leaves the ways to sign in as they were.
+    expect(find.text('Sign in with atomic.place'), findsOneWidget);
   });
 
   testWidgets('an account failure is shown, not swallowed', (tester) async {
     await tester.pumpWidget(_app(
         accountSignIn: (_) async => throw StateError(
             'Finish setting up your workspace in the browser first')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in with atomic.place'));
     await tester.pumpAndSettle();
@@ -116,11 +226,13 @@ void main() {
         accountSignIn: (_) async =>
             throw const shared.AtomicNoAssistedRecovery()));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in with atomic.place'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Paste your Atomic secret'), findsOneWidget);
     expect(find.byType(TextField), findsWidgets);
-    expect(find.text('Get Started'), findsNothing);
+    expect(find.text('Get started'), findsNothing);
   });
 
   testWidgets(
@@ -183,6 +295,8 @@ void main() {
           openBrowser: (url) async => opened.add(url)),
     ));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in with atomic.place'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
@@ -236,6 +350,8 @@ void main() {
           accountClient: () => client,
           openBrowser: (_) async {}),
     ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in with atomic.place'));
     await tester.pump();

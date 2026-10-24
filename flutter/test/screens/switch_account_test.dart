@@ -118,7 +118,7 @@ void main() {
   Future<void> signInWith(WidgetTester tester, String secret) async {
     await tester.tap(find.text(_entry));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('I have a secret — Sign In'));
+    await tester.tap(find.text('Sign in with a secret'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('signin-secret')), secret);
     await tester.tap(find.text('Sign In'));
@@ -133,9 +133,9 @@ void main() {
     // It opens the login options, without making a new account.
     await tester.tap(find.text(_entry));
     await tester.pumpAndSettle();
-    expect(find.text('I have a secret — Sign In'), findsOneWidget);
+    expect(find.text('Sign in with a secret'), findsOneWidget);
     expect(find.text('Sign in with atomic.place'), findsOneWidget);
-    expect(find.text('Get Started'), findsNothing);
+    expect(find.text('Get started'), findsNothing);
   });
 
   testWidgets(
