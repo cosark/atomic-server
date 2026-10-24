@@ -7,7 +7,7 @@ You write an app against a local store; persistence, identity, permissions, hist
 ## What the engine does
 
 - **A local store on every platform.** `@tomic/lib` in the browser runs the same Rust core (compiled to WebAssembly) on top of OPFS. `atomic_lib` provides it natively in Rust, the CLI, desktop and [Flutter](flutter.md) apps.
-- **Conflict-free merging.** Every Resource is a [Loro](https://loro.dev) CRDT document. Two people editing the same text, table row or document while offline merge without a conflict dialog and without a coordinator.
+- **Automatic CRDT merging.** Every Resource is a [Loro](https://loro.dev) CRDT document. Accepted concurrent edits merge automatically without a coordinator. Applications decide when the result needs human review: convergence does not guarantee that business rules are satisfied.
 - **Signed writes.** Edits travel as [Commits](commits/intro.md): a Loro delta plus an Ed25519 signature. Receivers verify the signature and the signer's rights before applying anything, the same way on a server, a phone and a browser tab.
 - **Efficient reconciliation.** Devices compare version vectors and exchange only what differs. An outbox holds offline edits and drains them, in order, to the first reachable peer.
 - **Several transports, one protocol.** See the table below.
@@ -37,7 +37,7 @@ The [local-first guide](local-first-guide/1-index.md) takes you from a keypair a
 
 ## What you do not need
 
-No REST layer to design, no database to run, no auth system, no websocket server, no conflict resolution code, no migration for the data model: classes and properties are data, validated on every device.
+No REST layer to design, no database to run, no auth system, no websocket server, no CRDT merge algorithm to implement, no migration for the data model: classes and properties are data, validated on every device.
 You can still run [AtomicServer](atomic-server.md) when you want an always-on replica, HTTP access for crawlers and scripts, full-text search across a Drive, or [plugins](plugins.md).
 
 ## How it works, in depth
