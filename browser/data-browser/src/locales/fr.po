@@ -1496,7 +1496,6 @@ msgid "Turtle / N-triples / N3"
 msgstr "Turtle / N-triples / N3"
 
 #: src/views/getting-started/GettingStartedFlow.tsx
-#: src/views/getting-started/GettingStartedFlow.tsx
 msgid "Create account"
 msgstr "Créer un compte"
 
@@ -3934,10 +3933,6 @@ msgstr ""
 
 #: src/components/Presence/MeetingBanner.tsx
 msgid "Join"
-msgstr ""
-
-#: src/views/getting-started/GettingStartedFlow.tsx
-msgid "Try the live demo"
 msgstr ""
 
 #: src/routes/DemoRoute.tsx
@@ -11045,6 +11040,7 @@ msgid "Data"
 msgstr ""
 
 #: src/components/MetaSetter.tsx
+#: src/views/getting-started/GettingStartedFlow.tsx
 msgid "Get started"
 msgstr ""
 
@@ -13347,4 +13343,7 @@ msgstr ""
 
 #: src/components/SideBar/SideBarDrive.tsx
 msgid "Switch Drive"
+
+#: src/views/getting-started/WorkspaceLoading.tsx
+msgid "Setting up your workspace on this device…"
 msgstr ""
