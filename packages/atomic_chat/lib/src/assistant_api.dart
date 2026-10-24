@@ -136,6 +136,17 @@ abstract class AssistantApi {
   /// The AI of the linked account; null when none is linked.
   Future<HostedAi?> hostedAi();
 
+  /// Whether this host can create the AI account for the identity this device
+  /// already has ([signUpForAi]); the AI notice then offers it.
+  bool get canSignUpForAi => false;
+
+  /// Mails [email] a link that creates the account with this device's own
+  /// agent as its identity, so nothing on the device changes. Throws a
+  /// [StateError] with a message for the person when it is refused. After the
+  /// link is opened, [hostedAi] returns the AI.
+  Future<void> signUpForAi(String email) async =>
+      throw UnsupportedError('This host cannot create an account');
+
   /// Starts an AI chat named [name]; returns its subject.
   Future<String> newChat(String name);
 

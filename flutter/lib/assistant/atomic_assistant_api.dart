@@ -1,4 +1,3 @@
-
 import 'dart:typed_data';
 
 import 'package:atomic_chat/atomic_chat.dart';
@@ -7,8 +6,10 @@ import 'package:flutter/foundation.dart' show Listenable, debugPrint;
 import '../atomic/account_store.dart';
 import '../atomic/atomic_client.dart';
 import '../atomic/own_profile.dart';
-import 'package:atomic_store_flutter/bridge/api/assistant.dart' as ffi_assistant;
-import 'package:atomic_store_flutter/bridge/api/simple/drive.dart' as ffi_simple;
+import 'package:atomic_store_flutter/bridge/api/assistant.dart'
+    as ffi_assistant;
+import 'package:atomic_store_flutter/bridge/api/simple/drive.dart'
+    as ffi_simple;
 import 'fake_ai.dart';
 
 /// The app's [AssistantApi]: the local node through [AtomicClient] (the Rust
@@ -95,8 +96,7 @@ class AtomicAssistantApi extends AssistantApi {
   Future<Map<String, String>> resourceIcons(List<String> subjects) =>
       AtomicClient.resourceIcons(subjects);
   @override
-  Future<Uint8List?> fileBytes(String file) =>
-      AtomicClient.readFileBytes(file);
+  Future<Uint8List?> fileBytes(String file) => AtomicClient.readFileBytes(file);
   @override
   void noteOpened(String drive, String subject) =>
       AtomicClient.noteResourceOpened(drive, subject);
@@ -137,6 +137,11 @@ class AtomicAssistantApi extends AssistantApi {
     if (saved == null) return null;
     return HostedAi.forSession(saved);
   }
+
+  @override
+  bool get canSignUpForAi => !fakeAiEnabled;
+  @override
+  Future<void> signUpForAi(String email) => AccountStore.signUpWithAgent(email);
 
   @override
   Future<String> newChat(String name) => AtomicClient.createAiChat(name);

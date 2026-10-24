@@ -220,6 +220,54 @@ void main() {
     });
   });
 
+  group('agent sign-up', () {
+    Future<String> fakeSign(String m) async => 'sig:$m';
+    MockClient portal(int status, Object body, List<http.Request> seen) =>
+        MockClient((request) async {
+          seen.add(request);
+          if (request.url.path == '/api/auth/agent/challenge') {
+            return http.Response(
+                jsonEncode({'nonce': 'n1', 'challenge': 'chal'}), 200);
+          }
+          return http.Response(jsonEncode(body), status);
+        });
+
+    test('signs the challenge and posts email and proof', () async {
+      final seen = <http.Request>[];
+      final client = AtomicAccountClient('https://provider.example',
+          client:
+              portal(200, {'status': 'ok', 'magic_link': 'https://l'}, seen));
+      final link = await client.signUpWithAgent(
+          ' me@example.com ', 'did:ad:agent:x', fakeSign);
+      expect(link, 'https://l');
+      expect(seen[0].url.path, '/api/auth/agent/challenge');
+      expect(jsonDecode(seen[0].body), {'agent_subject': 'did:ad:agent:x'});
+      expect(seen[1].url.path, '/api/signup');
+      final body = jsonDecode(seen[1].body) as Map;
+      expect(body['email'], 'me@example.com');
+      final agent = body['agent'] as Map;
+      expect(agent['nonce'], 'n1');
+      expect(agent['signature'], 'sig:chal ${agent['timestamp']}');
+      expect(client.linked, isFalse);
+    });
+
+    test('no dev link is null', () async {
+      final client = AtomicAccountClient('https://provider.example',
+          client: portal(200, {'status': 'ok', 'magic_link': null}, []));
+      expect(await client.signUpWithAgent('a@b.c', 'did:ad:agent:x', fakeSign),
+          isNull);
+    });
+
+    test('a refusal throws the portal text', () async {
+      final client = AtomicAccountClient('https://provider.example',
+          client: portal(400, {'error': 'Enter a single valid email.'}, []));
+      await expectLater(
+          client.signUpWithAgent('nope', 'did:ad:agent:x', fakeSign),
+          throwsA(isA<StateError>().having(
+              (e) => e.message, 'message', 'Enter a single valid email.')));
+    });
+  });
+
   group('AI credits', () {
     AtomicAccountClient linked(
             int status, Object body, List<http.Request> seen) =>

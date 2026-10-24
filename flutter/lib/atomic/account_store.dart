@@ -73,6 +73,26 @@ class AccountStore {
 
   static String? _attemptedAgent;
 
+  /// Asks the portal to mail [email] a link that creates the account with the
+  /// active agent as its identity (no new identity, nothing is switched).
+  /// Throws a [StateError] with the portal's words when refused.
+  static Future<void> signUpWithAgent(String email,
+      {String portal = defaultPortal}) async {
+    final info = await AtomicClient.getActiveAgent();
+    if (info == null) throw StateError('This device has no identity yet');
+    final agent = AtomicAgent.fromSecret(info.secret);
+    final client = shared.AtomicAccountClient(portal);
+    try {
+      await client.signUpWithAgent(email, agent.subject,
+          (message) async => signMessage(message, agent.privateKeyB64));
+      // Sign-in may have been refused before the account existed; let the
+      // next look-up try it again.
+      _attemptedAgent = null;
+    } finally {
+      client.close();
+    }
+  }
+
   /// Signs the account in with the active agent when nothing is saved, the way
   /// the web app does, so an agent that is an account identity needs no link
   /// code. True when a session is now saved. Silent otherwise: no account, no

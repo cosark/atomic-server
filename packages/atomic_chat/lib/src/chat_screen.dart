@@ -378,6 +378,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _keeper.dispose();
     _input.removeListener(_inputChanged);
     WidgetsBinding.instance.removeObserver(this);
+    _signUpPoll?.cancel();
+    _signUpEmail.dispose();
     _listenSession++;
     _inputInst?.stop();
     if (widget.hostedSpeechInput == null) {
@@ -480,7 +482,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed || _starting) return;
+    if (state == AppLifecycleState.resumed) {
+      // Back from the mail app: the account may exist now.
+      if (_signUpSent && _noAi) _lookUpAi(quiet: true);
+      return;
+    }
+    if (_starting) return;
     // The voice loop ends with the app in the background: nothing is sent.
     if (_voiceLoop || _speaking) return _stopVoice();
     _stopListening();
@@ -1026,9 +1033,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         : all;
   }
 
-  Future<void> _lookUpAi() async {
+  /// Looks the AI up. [quiet] (the retry while waiting for the account) says
+  /// nothing when there is still none or the look-up fails.
+  Future<void> _lookUpAi({bool quiet = false}) async {
     try {
       final ai = await widget.api.hostedAi();
+      if (quiet && ai == null) return;
       if (mounted) {
         setState(() {
           _ai = ai;
@@ -1047,7 +1057,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && !quiet) {
         setState(() {
           _aiLooked = true;
           _error = HostedAi.errorMessage(e);
@@ -2037,6 +2047,102 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   static const _noAiTitle = 'AI chat needs an atomic.place account';
 
+  /// The sign-up step under the notice: the button, then the email field.
+  bool _signUpOpen = false;
+
+  /// The link is mailed; waiting for it to be opened.
+  bool _signUpSent = false;
+  bool _signUpBusy = false;
+  String? _signUpError;
+  final _signUpEmail = TextEditingController();
+  Timer? _signUpPoll;
+
+  Future<void> _sendSignUp() async {
+    final email = _signUpEmail.text.trim();
+    if (email.isEmpty || _signUpBusy) return;
+    setState(() {
+      _signUpBusy = true;
+      _signUpError = null;
+    });
+    try {
+      await widget.api.signUpForAi(email);
+      if (!mounted) return;
+      setState(() {
+        _signUpBusy = false;
+        _signUpSent = true;
+      });
+      _signUpPoll?.cancel();
+      _signUpPoll = Timer.periodic(const Duration(seconds: 4), (_) {
+        if (_noAi) _lookUpAi(quiet: true);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _signUpBusy = false;
+        _signUpError = e is StateError ? e.message : HostedAi.errorMessage(e);
+      });
+    }
+  }
+
+  /// Under the notice: Create an account, then the email, then the wait.
+  Widget _signUpStep(AppColors c) {
+    if (!widget.api.canSignUpForAi) return const SizedBox.shrink();
+    if (_signUpSent) {
+      return Column(children: [
+        Text(
+          'Check your email and open the link. Your drives and documents '
+          'stay as they are.',
+          key: const Key('sign-up-sent'),
+          textAlign: TextAlign.center,
+          style: TextStyle(color: c.textPrimary, height: 1.4),
+        ),
+        const SizedBox(height: 8),
+        Wrap(alignment: WrapAlignment.center, children: [
+          TextButton(
+            key: const Key('sign-up-resend'),
+            onPressed: _signUpBusy ? null : _sendSignUp,
+            child: const Text('Resend'),
+          ),
+          TextButton(
+            key: const Key('sign-up-change'),
+            onPressed: () {
+              _signUpPoll?.cancel();
+              setState(() => _signUpSent = false);
+            },
+            child: const Text('Change email'),
+          ),
+        ]),
+        if (_signUpError != null) ErrorText(_signUpError!),
+      ]);
+    }
+    if (!_signUpOpen) {
+      return FilledButton(
+        key: const Key('sign-up-open'),
+        onPressed: () => setState(() => _signUpOpen = true),
+        child: const Text('Create an atomic.place account'),
+      );
+    }
+    return Column(children: [
+      TextField(
+        key: const Key('sign-up-email'),
+        controller: _signUpEmail,
+        autofocus: true,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email],
+        textInputAction: TextInputAction.send,
+        decoration: const InputDecoration(hintText: 'Your email address'),
+        onSubmitted: (_) => _sendSignUp(),
+      ),
+      const SizedBox(height: 8),
+      FilledButton(
+        key: const Key('sign-up-send'),
+        onPressed: _signUpBusy ? null : _sendSignUp,
+        child: const Text('Send'),
+      ),
+      if (_signUpError != null) ErrorText(_signUpError!),
+    ]);
+  }
+
   /// What a new chat shows without an AI: why, instead of a context picker
   /// for a chat that cannot be had and a line under an empty page.
   Widget _noAiState(AppColors c) => Center(
@@ -2064,6 +2170,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         'without one.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: c.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: _signUpStep(c),
               ),
             ],
           ),

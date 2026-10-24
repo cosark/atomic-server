@@ -110,6 +110,50 @@ class AtomicAccountClient {
     return true;
   }
 
+  /// Asks the portal to create an account for [email] whose identity is the
+  /// agent [agentSubject], proven by signing the portal's challenge (the same
+  /// one as [signInWithAgent]). The portal mails a magic link; opening it
+  /// creates the account, after which [signInWithAgent] succeeds. Returns the
+  /// link when a development portal hands it back instead of mailing, else
+  /// null. Throws a [StateError] with the portal's own words when it refuses.
+  Future<String?> signUpWithAgent(String email, String agentSubject,
+      Future<String> Function(String message) sign) async {
+    final issued = await _request('POST', 'auth/agent/challenge',
+        authenticated: false, body: {'agent_subject': agentSubject});
+    final challenge = _decode(issued.body);
+    if (issued.statusCode != 200 ||
+        challenge is! Map ||
+        challenge['nonce'] is! String ||
+        challenge['challenge'] is! String) {
+      throw StateError(_errorOf(issued) ?? 'Could not start the sign-up');
+    }
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final signature = await sign('${challenge['challenge']} $timestamp');
+    final response =
+        await _request('POST', 'signup', authenticated: false, body: {
+      'email': email.trim(),
+      'agent': {
+        'nonce': challenge['nonce'],
+        'timestamp': timestamp,
+        'signature': signature,
+      },
+    });
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError(_errorOf(response) ?? 'Could not create the account');
+    }
+    final json = _decode(response.body);
+    return json is Map && json['magic_link'] is String
+        ? json['magic_link'] as String
+        : null;
+  }
+
+  String? _errorOf(http.Response response) {
+    final json = _decode(response.body);
+    return json is Map && json['error'] is String && json['error'] != ''
+        ? json['error'] as String
+        : null;
+  }
+
   void close() => _http.close();
 
   Future<http.Response> _request(String method, String path,
@@ -564,8 +608,7 @@ class AtomicNoAssistedRecovery implements Exception {
   final String reason;
 
   const AtomicNoAssistedRecovery(
-      [this.reason =
-          "This account's backup can't be opened in the app yet."]);
+      [this.reason = "This account's backup can't be opened in the app yet."]);
 
   @override
   String toString() => '$reason Paste your Atomic secret, or open your '
