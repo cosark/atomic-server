@@ -2,15 +2,12 @@ import 'dart:convert';
 
 import 'package:atomic_flutter/atomic_flutter.dart' show AppColorsExt;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
-import 'package:url_launcher/url_launcher.dart';
 
 import 'app_shell.dart';
 import 'assistant_api.dart';
 import 'native_views.dart';
 import 'resource_view.dart';
 import 'slide_back_route.dart';
-import 'toast.dart';
 
 const _parentProperty = 'https://atomicdata.dev/properties/parent';
 const _nameProperty = 'https://atomicdata.dev/properties/name';
@@ -151,21 +148,18 @@ class _ResourceBreadcrumbsState extends State<ResourceBreadcrumbs> {
 
 /// Gives the screen it wraps the resource's "more" menu: the bottom bar's last
 /// button (on a phone) opens it, as it opens the web page's menu in a
-/// [ResourceView]. It has what the app can do for a resource on its own:
-/// rename (when [onRename] is given), copy the link and open it in the
-/// browser. The rest of the web menu (favorite, move, trash, history) is the
-/// page's and needs it.
+/// [ResourceView]. It is that same menu, the web app's `ResourceContextMenu`
+/// for [subject] (favorite, share, move, history, trash...), shown over the
+/// screen by [showResourceMenu].
 class ResourceMenuScope extends StatefulWidget {
   final AssistantApi api;
   final String subject;
-  final VoidCallback? onRename;
   final Widget child;
 
   const ResourceMenuScope({
     super.key,
     required this.api,
     required this.subject,
-    this.onRename,
     required this.child,
   });
 
@@ -214,39 +208,13 @@ class _ResourceMenuScopeState extends State<ResourceMenuScope> {
     super.dispose();
   }
 
-  Future<void> _open(Rect anchor) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    String? url;
-    try {
-      url = widget.api.webUrl(widget.subject);
-    } catch (_) {
-      // No server connected: there is no link to give.
-    }
-    final choice = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(anchor, Offset.zero & overlay.size),
-      items: [
-        if (widget.onRename != null)
-          const PopupMenuItem(value: 'rename', child: Text('Rename')),
-        if (url != null) ...const [
-          PopupMenuItem(value: 'copy', child: Text('Copy link')),
-          PopupMenuItem(value: 'browser', child: Text('Open in browser')),
-        ],
-      ],
-    );
-    if (!mounted || url == null && choice != 'rename') return;
-    switch (choice) {
-      case 'rename':
-        widget.onRename?.call();
-      case 'copy':
-        await Clipboard.setData(ClipboardData(text: url!));
-        if (mounted) {
-          ToastScope.maybeOf(context)?.show('link-copied', 'Link copied');
-        }
-      case 'browser':
-        await launchUrl(Uri.parse(url!), mode: LaunchMode.externalApplication);
-    }
-  }
+  Future<void> _open(Rect anchor) => showResourceMenu(
+        context,
+        api: widget.api,
+        drive: _shell?.drive.value ?? '',
+        subject: widget.subject,
+        anchor: anchor,
+      );
 
   @override
   Widget build(BuildContext context) => widget.child;

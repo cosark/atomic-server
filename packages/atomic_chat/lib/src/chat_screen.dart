@@ -1567,7 +1567,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 child: ResourceMenuScope(
                     api: widget.api,
                     subject: _chat ?? '',
-                    onRename: _chat == null ? null : _askRename,
                     child: Scaffold(
                       backgroundColor: c.bgBody,
                       appBar: AppTopBar(

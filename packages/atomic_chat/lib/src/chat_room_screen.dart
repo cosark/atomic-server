@@ -264,16 +264,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
             child: ResourceMenuScope(
                 api: widget.api,
                 subject: widget.subject,
-                onRename: _rename,
                 child: Scaffold(
                   backgroundColor: c.bgBody,
                   appBar: AppTopBar(
                     compact: true,
                     title: _title.isEmpty ? 'Chat' : _title,
-                    titleWidget: ChatHeader(
-                      title: _title.isEmpty ? 'Chat' : _title,
-                      subtitle: _subtitle,
-                      icon: Icons.forum_outlined,
+                    // Tap the name to change it (the menu is the web page's).
+                    titleWidget: InkWell(
+                      key: const Key('chat-title'),
+                      onTap: _rename,
+                      child: ChatHeader(
+                        title: _title.isEmpty ? 'Chat' : _title,
+                        subtitle: _subtitle,
+                        icon: Icons.forum_outlined,
+                      ),
                     ),
                     bottom: ResourceBreadcrumbs(
                         api: widget.api,

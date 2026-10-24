@@ -66,6 +66,12 @@ class ResourceView extends StatefulWidget {
   /// Answers one call of the page. Replaceable in a test.
   final Future<String> Function(String method, String argsJson)? call;
 
+  /// Set (the "more" button's rectangle, in the screen's coordinates) when
+  /// this is not the resource but only its menu: the web app's own
+  /// `ResourceContextMenu` on a transparent page, over a native screen (see
+  /// [showResourceMenu]).
+  final Rect? menuAnchor;
+
   const ResourceView({
     super.key,
     required this.api,
@@ -74,6 +80,7 @@ class ResourceView extends StatefulWidget {
     this.title = '',
     this.path,
     this.call,
+    this.menuAnchor,
   });
 
   @override
@@ -113,6 +120,13 @@ class _ResourceViewState extends State<ResourceView>
   ShellController? _shell;
   Route<dynamic>? _route;
   bool _leaving = false;
+
+  /// Only the resource's menu, on a transparent page (until an action opens a
+  /// page of its own: then this is an ordinary page).
+  late bool _menuOnly = widget.menuAnchor != null;
+
+  /// The web page's id for this showing of the menu.
+  final _menuId = '${DateTime.now().microsecondsSinceEpoch}';
   bool _wasCurrent = true;
   int _flushes = 0;
   final _flushed = <int, Completer<void>>{};
@@ -138,7 +152,7 @@ class _ResourceViewState extends State<ResourceView>
     AppSidebarIcons.show.addListener(_tellSidebarIcons);
     // A resource page in a real web view starts covered; a page of the app's
     // own (settings) and a test's page do not.
-    if (widget.path == null) {
+    if (widget.path == null && !_menuOnly) {
       _revealed = false;
       _skeletonGone = false;
       _revealCap = Timer(ResourceView.revealCold, _reveal);
@@ -167,6 +181,7 @@ class _ResourceViewState extends State<ResourceView>
     final fake = ResourceView.pageFactory;
     if (fake != null) {
       _page = fake(_onMessage);
+      if (_menuOnly) _showMenuWhenLaidOut(_page!);
       // Only a page that can say it shows the resource is covered.
       if (_page is! WarmPage) {
         _revealCap?.cancel();
@@ -181,7 +196,10 @@ class _ResourceViewState extends State<ResourceView>
           Theme.of(context).brightness == Brightness.dark ? 'dark' : 'light';
       final page = await WebViewEmbedPage.create(
         server.page.replace(queryParameters: {
-          if (widget.path != null)
+          if (_menuOnly)
+            'path': '/app/show?subject=${Uri.encodeComponent(widget.subject)}'
+                '&menu=$_menuId&x=${_menuPoint().dx}&y=${_menuPoint().dy}'
+          else if (widget.path != null)
             'path': widget.path!
           else
             'subject': widget.subject,
@@ -262,6 +280,10 @@ class _ResourceViewState extends State<ResourceView>
       debugPrint('[warm] taken ready=${page is WebViewEmbedPage ? page.age : 0}'
           ' ms after it started loading');
       final subject = jsonEncode(widget.subject);
+      if (_menuOnly) {
+        _showMenuWhenLaidOut(page);
+        return;
+      }
       // What the spare rendered ahead is read from the store again: it may
       // have changed while the page was hidden.
       final ahead = WarmResourceWebView.shownAhead[page];
@@ -276,6 +298,29 @@ class _ResourceViewState extends State<ResourceView>
       _revealCap = Timer(ResourceView.revealWarm, _reveal);
       _watchReveal();
     }
+  }
+
+  /// Where the menu opens in the page's own coordinates: the button's right
+  /// edge and top (the web menu flips itself to fit).
+  Offset _menuPoint() {
+    final anchor = widget.menuAnchor ?? Rect.zero;
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null || !box.hasSize
+        ? Offset.zero
+        : box.localToGlobal(Offset.zero);
+    return anchor.topRight - origin;
+  }
+
+  /// Tells a loaded page to show only the menu, at the button: once this view
+  /// has been laid out, so the web view has its size.
+  void _showMenuWhenLaidOut(EmbedPage page) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!mounted || !_menuOnly) return;
+      final at = _menuPoint();
+      unawaited(page.runJavaScript('window.atomicEmbed.showMenu('
+          '${jsonEncode(widget.subject)},{x:${at.dx},y:${at.dy}})'));
+    });
   }
 
   bool _warm = false;
@@ -325,6 +370,7 @@ class _ResourceViewState extends State<ResourceView>
   void _registerMenu() {
     final route = ModalRoute.of(context);
     if (route == null) return;
+    if (_menuOnly) return;
     _route = route;
     // A swipe back slides the page out, then waits for its last edits.
     if (route is SlideBackRoute) route.beforeSwipeLeave = _flushLeaving;
@@ -459,6 +505,18 @@ class _ResourceViewState extends State<ResourceView>
     if (request['method'] == 'flushed') {
       final done = _flushed[request['flush']];
       if (done != null && !done.isCompleted) done.complete();
+      return;
+    }
+    if (request['method'] == 'menuState') {
+      // The page's menu and its dialogs are done, or an action went to a page.
+      if (request['state'] == 'closed') {
+        unawaited(_leave());
+      } else if (_menuOnly) {
+        setState(() => _menuOnly = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _registerMenu();
+        });
+      }
       return;
     }
     if (request['method'] == 'gestures') {
@@ -636,6 +694,7 @@ class _ResourceViewState extends State<ResourceView>
   /// its form, say), and leaves the resource when there is none.
   Future<void> _back() async {
     if (_leaving) return;
+    if (_menuOnly) return _leave();
     final page = _page;
     if (page != null) {
       final went = await page
@@ -657,6 +716,18 @@ class _ResourceViewState extends State<ResourceView>
   Widget build(BuildContext context) {
     final c = context.appColors;
     final page = _page;
+    if (_menuOnly) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _back();
+        },
+        child: Material(
+          type: MaterialType.transparency,
+          child: page != null && _inTree ? page.build() : const SizedBox(),
+        ),
+      );
+    }
     return PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
@@ -771,3 +842,23 @@ Future<String?> driveOfResource(AssistantApi api, String subject) async {
   }
   return null;
 }
+
+/// Shows [subject]'s "more" menu over the native screen below: the web app's
+/// own menu (same items, order and behaviour as on a web page; one source of
+/// truth), on a transparent page that closes with the menu and the dialogs of
+/// its actions. An action that opens a page of its own turns the overlay into
+/// that page.
+Future<void> showResourceMenu(
+  BuildContext context, {
+  required AssistantApi api,
+  required String drive,
+  required String subject,
+  required Rect anchor,
+}) =>
+    Navigator.of(context).push(PageRouteBuilder<void>(
+      opaque: false,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (_, __, ___) => ResourceView(
+          api: api, drive: drive, subject: subject, menuAnchor: anchor),
+    ));

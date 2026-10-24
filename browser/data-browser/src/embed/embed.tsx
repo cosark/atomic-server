@@ -65,6 +65,7 @@ import {
 import { setLocalStorageValue } from '../hooks/useLocalStorage';
 import { useNativeChatRoom } from './useNativeChatRoom';
 import { embedTouchCss } from './touchStyle';
+import { EmbedMenu } from './EmbedMenu';
 
 enableEmbedMode();
 registerEmbedActions();
@@ -141,6 +142,10 @@ declare global {
       changed(subjects: string[]): void;
       /** `anchor`: the app's "more" button (right edge, top), in page px. */
       openMenu(anchor?: { x: number; y: number }): void;
+      /** The app's native screen asks for its "more" menu over itself: this
+       * page shows only the menu (and its dialogs) for `subject`, at the
+       * anchor, and posts `menuState` when it is done (`menuOverlay.ts`). */
+      showMenu(subject: string, anchor: { x: number; y: number }): void;
       back(): boolean;
       flush(leaving?: boolean): Promise<void>;
       setColorScheme(scheme: HostColorScheme | undefined): void;
@@ -236,11 +241,27 @@ const BelowHeader = styled.div`
 const showRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/app/show',
-  validateSearch: (search): { subject: string } => ({
+  validateSearch: (
+    search,
+  ): { subject: string; menu?: string; x?: number; y?: number } => ({
     subject: (search.subject as string) ?? '',
+    // Only the menu of the subject over a native screen (`showMenu`).
+    ...(search.menu === undefined
+      ? {}
+      : {
+          menu: String(search.menu),
+          x: Number(search.x),
+          y: Number(search.y),
+        }),
   }),
   component: function Show() {
-    const { subject } = showRoute.useSearch();
+    // The app's route tree types this path without the menu's keys.
+    const { subject, menu, x, y } = showRoute.useSearch() as {
+      subject: string;
+      menu?: string;
+      x?: number;
+      y?: number;
+    };
 
     // The app's native "more" button opens the same menu as the web navbar's.
     const [menuId, setMenuId] = useState(0);
@@ -264,17 +285,19 @@ const showRoute = createRoute({
     }, []);
 
     // A chat room is the app's native chat screen when it has one.
-    useNativeChatRoom(subject, () => {
+    useNativeChatRoom(menu ? '' : subject, () => {
       if (history.canGoBack()) history.back();
     });
 
     // A resource reached inside the page (a folder's child, a link, one just
     // created) goes into the app's Recents like one opened from the app.
     useEffect(() => {
+      if (menu) return;
+
       reportShown(subject);
 
       return () => reportShown(undefined);
-    }, [subject]);
+    }, [subject, menu]);
 
     // The drive first: the rows of a table are asked of the host's per-drive
     // index, and a list built before the drive is known stays empty.
@@ -294,6 +317,16 @@ const showRoute = createRoute({
 
     if (!subject || driveOf !== subject) {
       return null;
+    }
+
+    if (menu) {
+      return (
+        <EmbedMenu
+          subject={subject}
+          id={menu}
+          anchor={{ x: x ?? 16, y: y ?? window.innerHeight }}
+        />
+      );
     }
 
     return (
@@ -407,6 +440,19 @@ window.atomicEmbed = {
     window.dispatchEvent(
       new CustomEvent('atomic-embed-menu', { detail: anchor }),
     );
+  },
+  showMenu(subject, anchor) {
+    goToFirstEntry(history);
+    void router.navigate({
+      to: '/app/show',
+      search: {
+        subject,
+        menu: String(Date.now()),
+        x: anchor.x,
+        y: anchor.y,
+      } as { subject: string },
+      replace: true,
+    });
   },
   /** Every pending edit handed to the host. `leaving`: the page is about to
    * close, so an edit in progress (a focused field) ends first. */

@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:atomic_chat/atomic_chat.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,10 +13,7 @@ const _isA = 'https://atomicdata.dev/properties/isA';
 
 /// A store with Home > Projects > the screen's own resource.
 class _TreeApi extends FakeApi {
-  final String? url;
   final renamed = <(String, String)>[];
-
-  _TreeApi({this.url});
 
   static const _tree = <String, Map<String, Object>>{
     'did:ad:home': {_name: 'Home'},
@@ -34,9 +30,6 @@ class _TreeApi extends FakeApi {
     final subject = (jsonDecode(argsJson) as List).first as String;
     return jsonEncode(_tree[subject]);
   }
-
-  @override
-  String webUrl(String subject) => url ?? super.webUrl(subject);
 
   @override
   Future<List<ChatRoomMessage>> chatRoomMessages(String s) async => [];
@@ -63,10 +56,40 @@ Future<void> _push(WidgetTester tester, _TreeApi api, Widget screen) async {
 /// Taps the bar's "more" button.
 Future<void> openMoreMenu(WidgetTester tester) async {
   await tester.tap(find.byTooltip('More'));
+  await tester.pump();
+  // The page is told once the overlay is laid out.
+  await tester.pump(const Duration(milliseconds: 200));
   await tester.pumpAndSettle();
 }
 
+/// The page in a web view, without the web view.
+class _FakePage implements EmbedPage {
+  final void Function(String message) send;
+  final scripts = <String>[];
+  _FakePage(this.send);
+
+  @override
+  Future<void> runJavaScript(String script) async => scripts.add(script);
+
+  @override
+  Future<Object> runJavaScriptReturningResult(String script) async => false;
+
+  @override
+  Widget build() => const Center(child: Text('the page'));
+}
+
+late EmbedPage page;
+
+/// Lets the closed overlay's page be released (a timer after it closes).
+Future<void> _letGo(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump(const Duration(seconds: 6));
+}
+
 void main() {
+  setUp(() => ResourceView.pageFactory = (send) => page = _FakePage(send));
+  tearDown(() => ResourceView.pageFactory = null);
+
   final screens = <String, Widget Function(_TreeApi)>{
     'chat room': (api) => ChatRoomScreen(
         api: api,
@@ -100,16 +123,39 @@ void main() {
             findsNothing);
       });
 
-      testWidgets('has the more menu, with the link when there is a server',
+      testWidgets('More shows the web app\'s menu for the resource',
           (tester) async {
-        final api = _TreeApi(url: 'https://x.test/show?subject=did:ad:res');
+        final api = _TreeApi();
         await _push(tester, api, build(api));
         await openMoreMenu(tester);
-        // A conversation is named by its members: nothing to rename.
-        expect(find.text('Rename'),
-            name == 'conversation' ? findsNothing : findsOneWidget);
-        expect(find.text('Copy link'), findsOneWidget);
-        expect(find.text('Open in browser'), findsOneWidget);
+        // The web page's menu, on a transparent page over the screen: the
+        // page is told to show only the menu of this resource.
+        expect(
+            (page as _FakePage)
+                .scripts
+                .where((s) => s.contains('showMenu'))
+                .single,
+            contains('"did:ad:res"'));
+        expect(find.text('the page'), findsOneWidget);
+        // No second, hand-made menu.
+        expect(find.text('Copy link'), findsNothing);
+        expect(find.text('Open in browser'), findsNothing);
+        await _letGo(tester);
+      });
+
+      testWidgets('the overlay closes when the page says the menu is done',
+          (tester) async {
+        final api = _TreeApi();
+        await _push(tester, api, build(api));
+        await openMoreMenu(tester);
+        (page as _FakePage)
+            .send(jsonEncode({'method': 'menuState', 'state': 'closed'}));
+        // Leaving waits (at most 2 s) for the page to hand over its edits.
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle();
+        expect(find.text('the page'), findsNothing);
+        expect(find.byTooltip('More'), findsOneWidget);
+        await _letGo(tester);
       });
     });
   }
@@ -123,45 +169,30 @@ void main() {
     expect(find.byType(ChatRoomScreen, skipOffstage: false), findsNWidgets(2));
   });
 
-  testWidgets('without a server the menu has no link to give', (tester) async {
+  testWidgets('an action that opens a page keeps the overlay as that page',
+      (tester) async {
     final api = _TreeApi();
     await _push(tester, api, screens['chat room']!(api));
     await openMoreMenu(tester);
-    expect(find.text('Rename'), findsOneWidget);
-    expect(find.text('Copy link'), findsNothing);
-    expect(find.text('Open in browser'), findsNothing);
+    (page as _FakePage)
+        .send(jsonEncode({'method': 'menuState', 'state': 'page'}));
+    await tester.pumpAndSettle();
+    // Still there, no longer transparent: it is a page now.
+    expect(find.text('the page'), findsOneWidget);
+    expect(find.byType(Scaffold), findsWidgets);
+    await _letGo(tester);
   });
 
-  testWidgets('the room is renamed from the more menu', (tester) async {
+  testWidgets('the room is renamed from its title', (tester) async {
     final api = _TreeApi();
     await _push(tester, api, screens['chat room']!(api));
-    await openMoreMenu(tester);
-    await tester.tap(find.text('Rename'));
+    await tester.tap(find.byKey(const Key('chat-title')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('chat-room-name')), ' Family ');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(api.renamed, [('did:ad:res', 'Family')]);
     expect(find.text('Family'), findsWidgets);
-  });
-
-  testWidgets('copies the link', (tester) async {
-    String? copied;
-    tester.binding.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        copied = (call.arguments as Map)['text'] as String;
-      }
-      return null;
-    });
-    addTearDown(() => tester.binding.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, null));
-    final api = _TreeApi(url: 'https://x.test/show?subject=did:ad:res');
-    await _push(tester, api, screens['chat room']!(api));
-    await openMoreMenu(tester);
-    await tester.tap(find.text('Copy link'));
-    await tester.pumpAndSettle();
-    expect(copied, 'https://x.test/show?subject=did:ad:res');
   });
 
   testWidgets('a new chat is not in the drive yet: no crumbs, no menu',
