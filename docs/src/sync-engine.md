@@ -26,6 +26,9 @@ You write an app against a local store; persistence, identity, permissions, hist
 Finding a Drive you only know by identifier uses [peer discovery](identifiers.md#resolution) through the pkarr relay network.
 A mesh transport over Reticulum is planned and not built.
 
+For recommendations by app type, see [choosing transports and designing for offline edits](local-first-guide/7-design-decisions.md).
+The transport connects replicas; your application still defines record identity, business rules, and how rejected or ambiguous changes are reviewed.
+
 ## Using it
 
 The [local-first guide](local-first-guide/1-index.md) takes you from a keypair and a server-less Store through persistence, syncing to an always-on server, and the same Drive on a phone. The reference pages are:
@@ -34,10 +37,11 @@ The [local-first guide](local-first-guide/1-index.md) takes you from a keypair a
 - [`@tomic/react`](usecases/react.md) hooks and [`@tomic/svelte`](svelte.md)
 - [Rust](rust-lib.md) and [Flutter / Dart](flutter.md)
 - The [wire protocol](websockets.md), if you are implementing a client or peer
+- [Migrating from PostgreSQL](local-first-guide/8-from-postgres.md), for an incremental adoption path and the guarantees to evaluate before replacing a database
 
 ## What you do not need
 
-No REST layer to design, no database to run, no auth system, no websocket server, no CRDT merge algorithm to implement, no migration for the data model: classes and properties are data, validated on every device.
+Atomic supplies resource storage, signing, permissions, synchronization and CRDT merging, so you can start without building those layers yourself. Classes and properties are data. Your application still needs policies for business identity, key recovery, coordinated decisions and data transformations when the model changes.
 You can still run [AtomicServer](atomic-server.md) when you want an always-on replica, HTTP access for crawlers and scripts, full-text search across a Drive, or [plugins](plugins.md).
 
 ## How it works, in depth
