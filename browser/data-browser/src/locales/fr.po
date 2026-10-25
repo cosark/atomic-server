@@ -269,6 +269,7 @@ msgstr "Compacte automatiquement la conversation lorsque les jetons d'entr√©e d√
 #: src/chunks/TablePage/QuickAddDialog.tsx
 #: src/chunks/TablePage/TableHeadingMenu.tsx
 #: src/chunks/TablePage/TableHeadingMenu.tsx
+#: src/components/Share/PeopleWithAccess.tsx
 #: src/components/forms/ResourceSelector/ResourceSelector.tsx
 #: src/routes/SyncRoute.tsx
 #: src/routes/SyncRoute.tsx
@@ -13219,6 +13220,7 @@ msgstr ""
 
 #: src/routes/SyncRoute.tsx
 msgid "Not hosted yet"
+msgstr ""
 
 #: src/actions/resourceActions.tsx
 msgid "Move..."
@@ -13251,4 +13253,13 @@ msgstr ""
 
 #: src/helpers/moveResource.ts
 msgid "Moving to another drive is not supported yet."
+msgstr ""
+
+#: src/components/Share/PeopleWithAccess.tsx
+msgid "Invited"
+msgstr ""
+
+#. 0: invite.email
+#: src/components/Share/PeopleWithAccess.tsx
+msgid "Remove invite for {0}"
 msgstr ""
