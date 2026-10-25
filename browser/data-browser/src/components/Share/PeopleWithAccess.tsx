@@ -80,9 +80,9 @@ export function PeopleWithAccess({
             </CountCircle>
             <Who>
               <Name>{invite.email}</Name>
-              <Detail>
+              <BadgeLine>
                 <InvitedBadge>Invited</InvitedBadge>
-              </Detail>
+              </BadgeLine>
             </Who>
             <StaticRole>{roleLabel(invite.role)}</StaticRole>
             {onRemoveInvite && (
@@ -319,6 +319,12 @@ const Detail = styled.span`
   white-space: nowrap;
 `;
 
+/** Holds the pill without `overflow: hidden`, which clips its rounded edge. */
+const BadgeLine = styled.span`
+  display: flex;
+  min-width: 0;
+`;
+
 const StaticRole = styled.span`
   flex-shrink: 0;
   padding-inline: 0.75rem 1.1rem;
@@ -365,7 +371,10 @@ const ShowButton = styled.button`
 
 const InvitedBadge = styled.span`
   display: inline-block;
-  padding: 0 0.5rem;
+  flex-shrink: 0;
+  padding: 0.05rem 0.6rem;
+  line-height: 1.3;
+  white-space: nowrap;
   border-radius: 999px;
   background: ${p => p.theme.colors.bg1};
   color: ${p => p.theme.colors.textLight};

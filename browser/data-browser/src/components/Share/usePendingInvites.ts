@@ -50,8 +50,9 @@ export function usePendingInvites(target: string): {
   const record = async (emails: string[], role: 'read' | 'write') => {
     if (!privateDrive) return;
 
+    // The saved Contact reaches the collection through the store's own change
+    // events; no manual refresh.
     await savePendingInvites(store, privateDrive, target, emails, role);
-    await invalidateCollection();
   };
 
   return { invites, remove, record };
