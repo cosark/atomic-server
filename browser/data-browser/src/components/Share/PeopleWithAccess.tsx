@@ -8,6 +8,8 @@ import type { DirectRight } from './useShareRights';
 import type { MergedRight } from '../../routes/Share/useRights';
 import { useClassLabel } from './useClassLabel';
 import { AtomicLink } from '../AtomicLink';
+import { FaEnvelope } from 'react-icons/fa6';
+import type { PendingInvite } from '../../helpers/pendingInvites';
 
 interface PeopleWithAccessProps {
   rights: DirectRight[];
@@ -18,6 +20,9 @@ interface PeopleWithAccessProps {
   /** Shown under the current agent's name, e.g. their account email */
   currentAgentDetail?: string;
   onSetRole?: (agent: string, role: ShareRole | 'remove') => Promise<void>;
+  /** The viewer's own pending email invites, kept in their private drive */
+  invites?: PendingInvite[];
+  onRemoveInvite?: (subject: string) => Promise<void>;
 }
 
 /**
@@ -32,6 +37,8 @@ export function PeopleWithAccess({
   currentRole,
   currentAgentDetail,
   onSetRole,
+  invites = [],
+  onRemoveInvite,
 }: PeopleWithAccessProps): JSX.Element {
   const people = rights.filter(
     r =>
@@ -66,6 +73,33 @@ export function PeopleWithAccess({
             control={<StaticRole>{roleLabel(currentRole)}</StaticRole>}
           />
         )}
+        {invites.map(invite => (
+          <Row key={invite.subject} data-test='share-invited'>
+            <CountCircle aria-hidden>
+              <FaEnvelope />
+            </CountCircle>
+            <Who>
+              <Name>{invite.email}</Name>
+              <Detail>
+                <InvitedBadge>Invited</InvitedBadge>
+              </Detail>
+            </Who>
+            <StaticRole>{roleLabel(invite.role)}</StaticRole>
+            {onRemoveInvite && (
+              <ShowButton
+                type='button'
+                onClick={() =>
+                  onRemoveInvite(invite.subject).catch(e =>
+                    toast.error((e as Error).message),
+                  )
+                }
+                aria-label={`Remove invite for ${invite.email}`}
+              >
+                Remove
+              </ShowButton>
+            )}
+          </Row>
+        ))}
         {Array.from(inheritedByParent.entries()).map(([setIn, agents]) => (
           <InheritedGroup key={setIn} setIn={setIn} agents={agents} />
         ))}
@@ -327,4 +361,14 @@ const ShowButton = styled.button`
   &:hover {
     text-decoration: underline;
   }
+`;
+
+const InvitedBadge = styled.span`
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: ${p => p.theme.colors.bg1};
+  color: ${p => p.theme.colors.textLight};
+  font-size: 0.8rem;
+  font-weight: 600;
 `;
