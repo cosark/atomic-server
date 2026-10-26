@@ -44,3 +44,5 @@ pub mod ws_apply;
 
 #[cfg(feature = "db")]
 pub mod browser_peer;
+#[cfg(feature = "db")]
+pub mod webrtc_link;
