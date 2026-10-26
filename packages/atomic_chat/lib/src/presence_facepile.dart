@@ -8,21 +8,20 @@ import 'follow_controller.dart';
 import 'models.dart';
 import 'profile_avatar.dart';
 
-/// The agents who have [subject] open right now, one per agent: of an agent's
-/// sessions only the freshest counts (an older one may linger until it
-/// expires), so someone who moved on is not shown here.
+/// The agents who have [subject] open right now, one per agent, as the web
+/// shows them: any of their sessions on it counts. Picking only an agent's
+/// freshest session hid a browser that moved here while the same person's
+/// other tablet, idle elsewhere, had announced later.
 List<PresenceItem> viewersOf(List<PresenceItem> items, String subject) {
-  final freshest = <String, PresenceItem>{};
+  final here = <String, PresenceItem>{};
   for (final item in items) {
-    final seen = freshest[item.agent];
+    if (item.resource != subject) continue;
+    final seen = here[item.agent];
     if (seen == null || item.updatedAt > seen.updatedAt) {
-      freshest[item.agent] = item;
+      here[item.agent] = item;
     }
   }
-  return [
-    for (final item in freshest.values)
-      if (item.resource == subject) item
-  ];
+  return here.values.toList();
 }
 
 /// Reads a drive's presence while a page is on screen: when the host says it

@@ -513,8 +513,11 @@ class _ResourceViewState extends State<ResourceView>
       _follow.stop();
       return;
     }
+    // The followed session, else (it went away) their freshest one.
     final target =
-        items.reduce((a, b) => b.updatedAt > a.updatedAt ? b : a).resource;
+        (items.where((i) => i.sessionId == _follow.session).firstOrNull ??
+                items.reduce((a, b) => b.updatedAt > a.updatedAt ? b : a))
+            .resource;
     if (target == null || target == widget.subject) return;
     _replacing = true;
     widget.api.noteOpened(widget.drive, target);
@@ -550,7 +553,7 @@ class _ResourceViewState extends State<ResourceView>
     if (!mounted || choice == null) return;
     switch (choice) {
       case PresenceChoice.follow:
-        _follow.follow(who.agent);
+        _follow.follow(who.agent, session: who.sessionId);
         // Go to where they are right away.
         _leaderMoved();
       case PresenceChoice.stopFollowing:

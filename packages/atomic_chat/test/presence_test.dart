@@ -85,23 +85,22 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
-  testWidgets('one avatar per agent, the freshest session decides',
+  testWidgets('one avatar per agent, any session of theirs here counts',
       (tester) async {
     await open(tester, [
       who('a', at: 1),
       who('a', at: 2),
-      // Moved on: the older session still on this page does not count.
+      // Their other device announced later, elsewhere: this one is still here.
       who('b', at: 1),
       who('b', resource: 'elsewhere', at: 2),
       who('c'),
       who('d'),
-      who('e'),
     ]);
     expect(find.byKey(const Key('presence-avatar-a')), findsOneWidget);
-    expect(find.byKey(const Key('presence-avatar-b')), findsNothing);
+    expect(find.byKey(const Key('presence-avatar-b')), findsOneWidget);
     // Three shown, the rest as a number.
-    expect(find.byKey(const Key('presence-avatar-d')), findsOneWidget);
-    expect(find.byKey(const Key('presence-avatar-e')), findsNothing);
+    expect(find.byKey(const Key('presence-avatar-c')), findsOneWidget);
+    expect(find.byKey(const Key('presence-avatar-d')), findsNothing);
     expect(find.text('+1'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 6));
