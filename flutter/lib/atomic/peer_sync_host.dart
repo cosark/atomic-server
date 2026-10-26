@@ -11,10 +11,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'atomic_auth.dart';
 import 'atomic_client.dart';
-import 'server_info.dart';
-import 'session.dart';
 import 'webrtc/peer_link_backend.dart';
 import 'webrtc/peer_sync_service.dart';
 
@@ -34,10 +31,6 @@ class PeerSyncHost {
 
   WebRtcPeerSyncService? _service;
   Timer? _rescan;
-
-  /// Per drive and server, for the length of a run: does the Cloud Server
-  /// hold this drive. Asking costs a request.
-  final _cloud = <String, Future<bool>>{};
 
   bool get running => _service != null;
 
@@ -68,8 +61,10 @@ class PeerSyncHost {
       backend: backend,
       listDrives: AtomicClient.listDrives,
       driveSignalingUrl: _driveSignalingUrl,
-      usesCloudServer: (drive) =>
-          _cloud.putIfAbsent(drive, () => _onCloud(drive)),
+      // Every drive joins its room, also one this app syncs through a Cloud
+      // Server: the web joins it whenever its own server does not carry the
+      // drive (a private drive in the browser), and the two must meet.
+      usesCloudServer: (_) async => false,
       portalUrl: portalUrl,
       onStatus: (drive, status) => debugPrint('Peer sync $drive: $status'),
     );
@@ -85,7 +80,6 @@ class PeerSyncHost {
     _rescan = null;
     final service = _service;
     _service = null;
-    _cloud.clear();
     await service?.stop();
   }
 
@@ -96,24 +90,6 @@ class PeerSyncHost {
       return value.isEmpty ? null : value;
     } catch (_) {
       return null;
-    }
-  }
-
-  /// Same rule as the web's `driveUsesCloudServer`: the drive is on a managed
-  /// server the account is connected to. A drive that exists only on this
-  /// device (a private drive) is not, and is exactly what peers are for.
-  Future<bool> _onCloud(String drive) async {
-    try {
-      final server = await AtomicSession.activeServer();
-      if (server == null || server.isEmpty) return false;
-      if (!(await fetchServerInfo(server)).managed) return false;
-      final session = await AtomicSession.load();
-      if (session == null) return false;
-      return await fetchDriveUsage(
-              server, drive, AtomicAgent.fromSecret(session.secret)) !=
-          null;
-    } catch (_) {
-      return false;
     }
   }
 }
