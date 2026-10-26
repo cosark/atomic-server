@@ -8,8 +8,8 @@
 library;
 
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'framed_transport.dart';
@@ -36,6 +36,8 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
       }
     };
     _connection.onConnectionState = (state) {
+      if (_closed) return;
+      debugPrint('[webrtc] connection state $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _fail(Exception(_noRoute));
       } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
@@ -60,10 +62,15 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
   final RTCPeerConnection _connection;
   final _pipe = Completer<DataPipe>();
   final _gathered = Completer<void>();
+
+  /// Completes when this connection closes, to cut short a wait for ICE
+  /// gathering (the web's `cancelGathering`).
+  final _closing = Completer<void>();
   late final Timer _timer;
   RTCDataChannel? _channel;
   _DataChannelPipe? _wrapped;
   bool _closed = false;
+  bool _logged = false;
   String? _local;
   String? _remote;
 
@@ -76,6 +83,7 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
 
   @override
   Future<String> createOffer() async {
+    _ensureOpen();
     final channel = await _connection.createDataChannel(
       dataChannelLabel,
       RTCDataChannelInit()
@@ -89,6 +97,7 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
 
   @override
   Future<String> acceptOffer(String sdp) async {
+    _ensureOpen();
     await _connection.setRemoteDescription(RTCSessionDescription(sdp, 'offer'));
     _remote = sdp;
     return _describe(await _connection.createAnswer());
@@ -96,19 +105,30 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
 
   @override
   Future<void> acceptAnswer(String sdp) async {
+    _ensureOpen();
     await _connection
         .setRemoteDescription(RTCSessionDescription(sdp, 'answer'));
     _remote = sdp;
   }
 
+  /// Nothing may touch the native connection once it is closed: the plugin
+  /// logs `peerConnection is null` for every such call.
+  void _ensureOpen() {
+    if (_closed) throw StateError('WebRTC pairing closed');
+  }
+
   Future<String> _describe(RTCSessionDescription description) async {
+    _ensureOpen();
     await _connection.setLocalDescription(description);
+    _ensureOpen();
     final state = await _connection.getIceGatheringState();
     if (state == RTCIceGatheringState.RTCIceGatheringStateComplete &&
         !_gathered.isCompleted) {
       _gathered.complete();
     }
-    await _gathered.future.timeout(_gatheringTimeout, onTimeout: () {});
+    await Future.any([_gathered.future, _closing.future])
+        .timeout(_gatheringTimeout, onTimeout: () {});
+    _ensureOpen();
     final local = await _connection.getLocalDescription();
     final sdp = local?.sdp;
     if (sdp == null || sdp.isEmpty) {
@@ -144,6 +164,8 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
 
   void _fail(Exception error) {
     if (_closed) return;
+    debugPrint('[webrtc] link closing: $error');
+    _logged = true;
     if (!_pipe.isCompleted) _pipe.completeError(error);
     // An open channel that dies ends through its message stream.
     unawaited(close());
@@ -151,6 +173,7 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
 
   @override
   Future<ConnectionPath> path() async {
+    if (_closed) return ConnectionPath.unknown;
     try {
       final reports = await _connection.getStats();
       final byId = {for (final r in reports) r.id: r};
@@ -175,6 +198,8 @@ class FlutterWebRtcConnection implements PeerConnectionHandle {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    if (!_logged) debugPrint('[webrtc] link closed by this device');
+    if (!_closing.isCompleted) _closing.complete();
     _timer.cancel();
     if (!_pipe.isCompleted) {
       _pipe.completeError(Exception('WebRTC peer closed'));

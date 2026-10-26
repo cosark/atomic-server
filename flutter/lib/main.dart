@@ -275,7 +275,10 @@ class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
     unawaited(perfSeedIfAsked());
     _startEventListener();
     _startBackgroundSync();
-    unawaited(_restartPeerSync());
+    // Not a restart: coming back from the background signs in again, and a
+    // restart closed the links the resume had just reopened. Sign-out and
+    // account switches stop the rooms themselves.
+    unawaited(PeerSyncHost.instance.start());
   }
 
   /// WebRTC rooms of the drives, where the browser of the same person meets

@@ -14,7 +14,8 @@
 library;
 
 import 'dart:async';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import 'framed_transport.dart';
 import 'peer_connection.dart';
@@ -96,6 +97,10 @@ class WebRtcPeerMesh {
     _retryDelays.clear();
     _readyAt.clear();
     final peers = _connections.values.toList();
+    if (peers.isNotEmpty) {
+      debugPrint('[webrtc] room closed by this device, closing '
+          '${peers.length} peer(s)');
+    }
     _connections.clear();
     for (final peer in peers) {
       await peer.close();
@@ -160,14 +165,18 @@ class WebRtcPeerMesh {
           _retryDelays.remove(event.peer);
           // A live data channel can outlast its signalling socket.
           final peer = _connections[event.peer];
-          if (peer != null && !peer.ready) _remove(event.peer, peer);
+          if (peer != null && !peer.ready) {
+            _remove(event.peer, peer, 'peer left the room before it was ready');
+          }
         case SignalingOffer():
           if (!_members.contains(event.from) ||
               event.from.compareTo(peerId) >= 0) {
             return;
           }
           final existing = _connections[event.from];
-          if (existing != null) _remove(event.from, existing);
+          if (existing != null) {
+            _remove(event.from, existing, 'replaced by a new offer');
+          }
           final peer = _createConnection(event.from);
           unawaited(peer.acceptOffer(event.sdp).then((answer) {
             if (_connections[event.from] == peer) {
@@ -226,7 +235,8 @@ class WebRtcPeerMesh {
           .where((e) => !_members.contains(e.key))
           .firstOrNull;
       if (stale == null) throw StateError('Peer connection limit reached');
-      _remove(stale.key, stale.value);
+      _remove(
+          stale.key, stale.value, 'evicted: not in the room, limit reached');
     }
     final peer = _Peer(
       mesh: this,
@@ -243,8 +253,9 @@ class WebRtcPeerMesh {
     return peer;
   }
 
-  void _remove(String id, _Peer peer) {
+  void _remove(String id, _Peer peer, [String why = 'removed']) {
     if (_connections[id] != peer) return;
+    debugPrint('[webrtc] peer ${id.substring(0, 8)} closed: $why');
     _connections.remove(id);
     // Only a connection that stayed up resets the backoff; one that
     // authenticates and dies within seconds keeps backing off.
@@ -258,8 +269,8 @@ class WebRtcPeerMesh {
 
   void _failed(String id, _Peer? peer, Object error) {
     if (_stopped || peer == null || _connections[id] != peer) return;
-    _lastError = error is Exception || error is Error ? '$error' : '$error';
-    _remove(id, peer);
+    _lastError = '$error';
+    _remove(id, peer, 'failed: $error');
     onStatus?.call(_lastError);
     if (_members.contains(id) &&
         id.compareTo(peerId) > 0 &&

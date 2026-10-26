@@ -44,7 +44,24 @@ class PeerSyncHost {
   /// The latest status of each drive's room, for a status line.
   Map<String, String> get statuses => _service?.statuses ?? const {};
 
-  Future<void> start() async {
+  /// Start and stop run one at a time, in call order. The app asks for both
+  /// from several places at once (resume, login, sign-out); unordered, a stop
+  /// closed the links a concurrent start had just opened.
+  Future<void> _queue = Future.value();
+
+  Future<void> _enqueue(Future<void> Function() task) {
+    final next = _queue.then((_) => task());
+    _queue = next.catchError((Object error) {
+      debugPrint('[webrtc] peer sync: $error');
+    });
+    return next;
+  }
+
+  Future<void> start() => _enqueue(_start);
+
+  Future<void> stop() => _enqueue(_stop);
+
+  Future<void> _start() async {
     final backend = this.backend;
     if (backend == null) return;
     final service = _service ??= WebRtcPeerSyncService(
@@ -63,7 +80,7 @@ class PeerSyncHost {
     await service.start();
   }
 
-  Future<void> stop() async {
+  Future<void> _stop() async {
     _rescan?.cancel();
     _rescan = null;
     final service = _service;

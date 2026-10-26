@@ -128,6 +128,7 @@ class FakeLink implements PeerLinkHandle {
   final handled = <Uint8List>[];
   final _live = <Completer<List<Uint8List>>>[];
   Uint8List? reconcile;
+  int reconcileCalls = 0;
   bool closed = false;
 
   @override
@@ -137,7 +138,10 @@ class FakeLink implements PeerLinkHandle {
   }
 
   @override
-  Future<Uint8List?> reconcileFrame() async => reconcile;
+  Future<Uint8List?> reconcileFrame() async {
+    reconcileCalls++;
+    return reconcile;
+  }
 
   @override
   Future<List<Uint8List>> nextLiveFrames() {

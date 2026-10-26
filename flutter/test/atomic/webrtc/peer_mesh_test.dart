@@ -1,9 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:atomic_app/atomic/webrtc/framed_transport.dart';
 import 'package:atomic_app/atomic/webrtc/peer_identity.dart';
 import 'package:atomic_app/atomic/webrtc/peer_link_backend.dart';
 import 'package:atomic_app/atomic/webrtc/peer_mesh.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes.dart';
@@ -290,6 +289,31 @@ void main() {
       await eventually(() => rig.sent('offer').length == 2,
           reason: 'a second offer');
       expect(rig.connections, hasLength(2));
+    });
+
+    test('a closed link logs why and stops polling', () async {
+      final logs = <String>[];
+      final original = debugPrint;
+      debugPrint = (message, {wrapWidth}) => logs.add(message ?? '');
+      addTearDown(() => debugPrint = original);
+      await connect();
+      await remote.recv();
+      await remote.send(Uint8List.fromList([0x02]));
+      await eventually(() => rig.mesh.connectedPeers == 1);
+      await eventually(() => link.reconcileCalls >= 2, reason: 'the timer');
+      await remote.close();
+      await eventually(() => rig.mesh.connectedPeers == 0);
+      expect(
+          logs.any((l) =>
+              l.startsWith('[webrtc] peer ${_high.substring(0, 8)} closed: ') &&
+              l.contains('Peer disconnected')),
+          isTrue,
+          reason: logs.join('\n'));
+      // No timer or loop touches the dead link: the count settles.
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      final settled = link.reconcileCalls;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(link.reconcileCalls, settled);
     });
 
     test('a peer that never authenticates is dropped after the timeout',
