@@ -40,6 +40,12 @@ class DeviceAttachmentPicker extends AttachmentPicker {
   @override
   bool keeps(PickedFile file) => file.mediaType == 'application/pdf';
 
+  // The included AI takes photos of up to 1 MB each (as base64): a phone
+  // photo is shrunk and re-encoded as JPEG, which is plenty to read a room or
+  // a floor plan.
+  static const _maxSide = 1400.0;
+  static const _quality = 75;
+
   static Future<PickedFile> _read(XFile f) async => PickedFile(
       name: f.name,
       mediaType: f.mimeType ?? mediaTypeOf(f.name),
@@ -47,12 +53,18 @@ class DeviceAttachmentPicker extends AttachmentPicker {
 
   @override
   Future<List<PickedFile>> pickImages() async => [
-        for (final f in await ImagePicker().pickMultiImage()) await _read(f),
+        for (final f in await ImagePicker().pickMultiImage(
+            maxWidth: _maxSide, maxHeight: _maxSide, imageQuality: _quality))
+          await _read(f),
       ];
 
   @override
   Future<PickedFile?> takePhoto() async {
-    final f = await ImagePicker().pickImage(source: ImageSource.camera);
+    final f = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        maxWidth: _maxSide,
+        maxHeight: _maxSide,
+        imageQuality: _quality);
     return f == null ? null : _read(f);
   }
 
