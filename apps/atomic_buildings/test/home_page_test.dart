@@ -54,6 +54,18 @@ void main() {
     expect(plan, findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
 
+    String? written;
+    await tester.pumpWidget(MaterialApp(
+        home: HomePage(repo, home, writeExport: (name, glb) async {
+      written = '$name:${glb.length}';
+      return '/docs/$name';
+    })));
+    await settle();
+    await tester.tap(find.byTooltip('Export 3D model'));
+    await settle();
+    expect(written, startsWith('Villa.glb:'));
+    expect(find.text('3D model saved to /docs/Villa.glb'), findsOneWidget);
+
     await tester.tap(find.text('Questions'));
     await settle();
     expect(find.text('Is the north wall load-bearing?'), findsOneWidget);
