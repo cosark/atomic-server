@@ -165,19 +165,16 @@ Future<AttachChoice?> showAttachSheet(
   final c = context.appColors;
   const noPicker = 'Not available in this app yet';
   const noImages = 'The included AI reads text only';
-  Widget tile(
-    AttachChoice choice,
-    IconData icon,
-    String title, {
-    String? off,
-  }) => ListTile(
-    key: Key('attach-${choice.name}'),
-    leading: Icon(icon, color: off == null ? c.main : c.textSecondary),
-    title: Text(title),
-    subtitle: off == null ? null : Text(off),
-    enabled: off == null,
-    onTap: () => Navigator.pop(context, choice),
-  );
+  Widget tile(AttachChoice choice, IconData icon, String title,
+          {String? off}) =>
+      ListTile(
+        key: Key('attach-${choice.name}'),
+        leading: Icon(icon, color: off == null ? c.main : c.textSecondary),
+        title: Text(title),
+        subtitle: off == null ? null : Text(off),
+        enabled: off == null,
+        onTap: () => Navigator.pop(context, choice),
+      );
   return showModalBottomSheet<AttachChoice>(
     context: context,
     showDragHandle: true,
@@ -194,8 +191,8 @@ Future<AttachChoice?> showAttachSheet(
               off: picker == null || !picker.canPickImages
                   ? noPicker
                   : images
-                  ? null
-                  : noImages,
+                      ? null
+                      : noImages,
             ),
             tile(
               AttachChoice.camera,
@@ -204,8 +201,8 @@ Future<AttachChoice?> showAttachSheet(
               off: picker == null || !picker.canTakePhoto
                   ? noPicker
                   : images
-                  ? null
-                  : noImages,
+                      ? null
+                      : noImages,
             ),
             tile(
               AttachChoice.file,
@@ -237,12 +234,13 @@ Future<ContextResource?> showDrivePicker(
   BuildContext context, {
   required AssistantApi api,
   required List<RecentResource> recent,
-}) => showModalBottomSheet<ContextResource>(
-  context: context,
-  isScrollControlled: true,
-  showDragHandle: true,
-  builder: (_) => _DrivePicker(api: api, recent: recent),
-);
+}) =>
+    showModalBottomSheet<ContextResource>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _DrivePicker(api: api, recent: recent),
+    );
 
 class _DrivePicker extends StatefulWidget {
   final AssistantApi api;
@@ -313,11 +311,9 @@ class _DrivePickerState extends State<_DrivePicker> {
       else if (hits.isEmpty)
         Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'Nothing found',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: c.textSecondary),
-          ),
+          child: Text('Nothing found',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: c.textSecondary)),
         )
       else
         for (final h in hits)
@@ -361,9 +357,10 @@ class _DrivePickerState extends State<_DrivePicker> {
   }
 
   Widget _heading(AppColors c, String text) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-    child: Text(text, style: TextStyle(color: c.textSecondary, fontSize: 12)),
-  );
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child:
+            Text(text, style: TextStyle(color: c.textSecondary, fontSize: 12)),
+      );
 }
 
 /// An attached image, small.
@@ -388,8 +385,8 @@ class AttachmentThumb extends StatelessWidget {
             : Image.memory(
                 bytes,
                 fit: BoxFit.cover,
-                cacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
-                    .round(),
+                cacheWidth:
+                    (size * MediaQuery.devicePixelRatioOf(context)).round(),
                 gaplessPlayback: true,
                 errorBuilder: (_, __, ___) =>
                     Icon(Icons.broken_image_outlined, color: c.textSecondary),
@@ -457,12 +454,10 @@ class AttachmentChip extends StatelessWidget {
                   radius: 14,
                   child: Padding(
                     padding: const EdgeInsets.all(3),
-                    child: Icon(
-                      Icons.close,
-                      size: 14,
-                      semanticLabel: 'Remove $label',
-                      color: c.textSecondary,
-                    ),
+                    child: Icon(Icons.close,
+                        size: 14,
+                        semanticLabel: 'Remove $label',
+                        color: c.textSecondary),
                   ),
                 ),
             ],
