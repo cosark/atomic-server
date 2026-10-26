@@ -4494,7 +4494,7 @@ fn wire__crate__api__simple__presence__clear_presence_impl(
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "clear_presence",
             port: Some(port_),
@@ -4512,11 +4512,15 @@ fn wire__crate__api__simple__presence__clear_presence_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_drive = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::api::simple::presence::clear_presence(api_drive)?;
-                    Ok(output_ok)
-                })())
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::simple::presence::clear_presence(api_drive).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -6657,7 +6661,7 @@ fn wire__crate__api__simple__presence__presence_impl(
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "presence",
             port: Some(port_),
@@ -6675,11 +6679,14 @@ fn wire__crate__api__simple__presence__presence_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_drive = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::api::simple::presence::presence(api_drive)?;
-                    Ok(output_ok)
-                })())
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok = crate::api::simple::presence::presence(api_drive).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -7762,7 +7769,7 @@ fn wire__crate__api__simple__presence__set_presence_impl(
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "set_presence",
             port: Some(port_),
@@ -7781,12 +7788,16 @@ fn wire__crate__api__simple__presence__set_presence_impl(
             let api_drive = <String>::sse_decode(&mut deserializer);
             let api_entry_json = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::api::simple::presence::set_presence(api_drive, api_entry_json)?;
-                    Ok(output_ok)
-                })())
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::simple::presence::set_presence(api_drive, api_entry_json)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )

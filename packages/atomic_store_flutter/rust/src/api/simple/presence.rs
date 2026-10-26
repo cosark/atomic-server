@@ -9,7 +9,7 @@ use atomic_lib::host::presence;
 /// Announce this device in `drive`. `entry_json` is a JSON object, the web's
 /// `PresenceEntry` (`agent`, `resource`, `following`, `allowFollow`, `typing`,
 /// `data`). The hub re-sends it every 10 s until [`clear_presence`].
-pub fn set_presence(drive: String, entry_json: String) -> Result<(), String> {
+pub async fn set_presence(drive: String, entry_json: String) -> Result<(), String> {
     let entry: serde_json::Value =
         serde_json::from_str(&entry_json).map_err(|e| format!("invalid presence JSON: {e}"))?;
     let store = super::state::default_store()?;
@@ -17,7 +17,7 @@ pub fn set_presence(drive: String, entry_json: String) -> Result<(), String> {
 }
 
 /// Leave `drive`: delete this device's entry so others see it go at once.
-pub fn clear_presence(drive: String) -> Result<(), String> {
+pub async fn clear_presence(drive: String) -> Result<(), String> {
     let store = super::state::default_store()?;
     presence::clear_presence(store.db.as_ref(), &drive);
     Ok(())
@@ -25,7 +25,7 @@ pub fn clear_presence(drive: String) -> Result<(), String> {
 
 /// The other sessions in `drive` as a JSON array of the web's `PresenceItem`
 /// (the entry plus `sessionId`), stable between reads.
-pub fn presence(drive: String) -> Result<String, String> {
+pub async fn presence(drive: String) -> Result<String, String> {
     let store = super::state::default_store()?;
     let items = presence::presence(store.db.as_ref(), &drive);
     serde_json::to_string(&items).map_err(|e| e.to_string())

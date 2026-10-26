@@ -274,12 +274,18 @@ impl PresenceHub {
     /// runtime. Safe to call twice: the second call does nothing. The task
     /// ends with the process; there is no stop, as the hub lives that long.
     pub fn start(self: &Arc<Self>) {
+        // Called from a thread with no runtime (a sync bridge call), spawning
+        // would panic: the next call from inside one starts it instead.
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            tracing::warn!("[presence] not started: no tokio runtime on this thread");
+            return;
+        };
         if self.started.swap(true, Ordering::SeqCst) {
             return;
         }
         let hub = self.clone();
         let mut events = self.db.subscribe_ephemeral();
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             let mut beat = tokio::time::interval(std::time::Duration::from_millis(HEARTBEAT_MS));
             let mut sweep = tokio::time::interval(std::time::Duration::from_secs(1));
             loop {
