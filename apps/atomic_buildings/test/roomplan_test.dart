@@ -6,6 +6,7 @@ import 'package:atomic_buildings/src/room_scanner.dart';
 import 'package:atomic_buildings/src/roomplan.dart';
 import 'package:atomic_buildings/src/terms.g.dart';
 import 'package:atomic_buildings/ui/home_page.dart';
+import 'chat_helpers.dart';
 import 'package:atomic_store/atomic_store.dart';
 import 'package:atomic_store/testing.dart';
 import 'package:flutter/material.dart';
@@ -170,9 +171,10 @@ void main() {
       }
     }
 
-    await tester.pumpWidget(
-        MaterialApp(home: HomePage(repo, home, scanner: FakeScanner(room))));
+    await tester.pumpWidget(chatApp(
+        HomePage(repo, home, chat: noAccountChat, scanner: FakeScanner(room))));
     await settle();
+    await openScreen(tester, 'Plan');
     await tester.tap(find.text('Scan room'));
     await settle();
     expect(
@@ -182,10 +184,13 @@ void main() {
         .length);
     expect(n, 7);
 
-    await tester.pumpWidget(MaterialApp(
-        home: HomePage(repo, home,
-            key: UniqueKey(), scanner: FakeScanner(null, supported: false))));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(chatApp(HomePage(repo, home,
+        chat: noAccountChat,
+        key: UniqueKey(),
+        scanner: FakeScanner(null, supported: false))));
     await settle();
+    await openScreen(tester, 'Plan');
     expect(find.text('Scan room'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     backend.dispose();

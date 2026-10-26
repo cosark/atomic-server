@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../src/repository.dart';
 import 'common.dart';
+import 'building_chat_page.dart';
 import 'home_page.dart';
 
 class HomesPage extends StatelessWidget {
-  const HomesPage(this.repo, {super.key, this.actions = const []});
+  const HomesPage(this.repo,
+      {super.key, this.actions = const [], required this.chat});
   final BuildingRepository repo;
   final List<Widget> actions;
+
+  /// The chat of each Home.
+  final BuildingChat chat;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -29,7 +34,9 @@ class HomesPage extends StatelessWidget {
                 title: Text(home.name ?? '(unnamed)'),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute<void>(builder: (_) => HomePage(repo, home)),
+                  MaterialPageRoute<void>(
+                      builder: (_) =>
+                          HomePage(repo, home, chat: chat, actions: actions)),
                 ),
               ),
           ]),

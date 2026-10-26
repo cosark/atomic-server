@@ -1,8 +1,11 @@
+import 'package:atomic_chat/atomic_chat.dart' show AppColors;
 import 'package:atomic_store_flutter/atomic_store_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'src/agent_account.dart';
 import 'src/repository.dart';
+import 'ui/building_chat_page.dart';
 import 'ui/homes_page.dart';
 
 Future<void> main() async {
@@ -15,21 +18,30 @@ Future<void> main() async {
     path: '${dir.path}/atomic_buildings',
     agentName: 'Me',
   );
+  final account = AgentAccount(() => node.identity.secret);
   runApp(BuildingsApp(
     BuildingRepository(node.store),
     actions: [AtomicAccountButton(node: node)],
+    chat: BuildingChat(ai: account.hostedAi, signUp: account.signUp),
   ));
 }
 
 class BuildingsApp extends StatelessWidget {
-  const BuildingsApp(this.repo, {super.key, this.actions = const []});
+  const BuildingsApp(this.repo,
+      {super.key, this.actions = const [], required this.chat});
   final BuildingRepository repo;
   final List<Widget> actions;
+  final BuildingChat chat;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'AtomicBuildings',
-        theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
-        home: HomesPage(repo, actions: actions),
+        theme: ThemeData(
+          colorSchemeSeed: Colors.teal,
+          useMaterial3: true,
+          // The chat screens of atomic_chat read their colours from here.
+          extensions: const [AppColors.light],
+        ),
+        home: HomesPage(repo, actions: actions, chat: chat),
       );
 }

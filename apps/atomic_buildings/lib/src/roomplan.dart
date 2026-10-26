@@ -5,6 +5,7 @@ import 'package:atomic_store/atomic_store.dart';
 
 import 'geometry.dart';
 import 'repository.dart';
+import 'room_align.dart';
 
 /// A room scan as the native RoomPlan plugin returns it (JSON contract).
 ///
@@ -12,6 +13,9 @@ import 'repository.dart';
 /// {
 ///   "name": "Living room",          // optional
 ///   "storeyHeight": 2.6,            // optional, metres
+///   "sessionId": "UUID",            // optional: the native capture session
+///   "worldShared": true,            // optional: same ARKit world as the
+///                                   // previous scan of that session
 ///   "surfaces": [{
 ///     "category": "wall",           // wall|door|window|opening|floor|ceiling
 ///     "id": "UUID",
@@ -34,11 +38,15 @@ class ScannedRoom {
     this.storeyHeight,
     this.surfaces = const [],
     this.objects = const [],
+    this.worldShared = false,
+    this.sessionId,
   });
 
   factory ScannedRoom.fromJson(Map json) => ScannedRoom(
         name: json['name'] as String?,
         storeyHeight: (json['storeyHeight'] as num?)?.toDouble(),
+        worldShared: json['worldShared'] == true,
+        sessionId: json['sessionId'] as String?,
         surfaces: [
           for (final s in (json['surfaces'] as List? ?? const []))
             ScannedItem.fromJson(s as Map, surface: true),
@@ -62,6 +70,12 @@ class ScannedRoom {
   final double? storeyHeight;
   final List<ScannedItem> surfaces;
   final List<ScannedItem> objects;
+
+  /// True when the plugin kept one ARKit world since the previous scan of
+  /// [sessionId]: this room's transforms are then in the same frame as that
+  /// scan's and need no door matching.
+  final bool worldShared;
+  final String? sessionId;
 }
 
 /// A surface or an object of a [ScannedRoom].
@@ -179,18 +193,112 @@ const _ifc = {
 String _label(String category) =>
     category[0].toUpperCase() + category.substring(1);
 
+/// What [importScannedRoomChecked] did.
+class ScanImport {
+  const ScanImport(this.created,
+      {this.alignment, this.needsDecision = false, this.reason});
+
+  /// The proposed Spaces and Elements; empty when [needsDecision].
+  final List<Resource> created;
+
+  /// The transform applied, or null when the room went in as scanned.
+  final Alignment? alignment;
+
+  /// Nothing was imported: the room could not be placed with confidence. Ask
+  /// the person, then call again with `alignment:` (the best guess, one of its
+  /// `alternatives`, or [Alignment.identity] to keep the scan's own frame) or
+  /// with `align: false`.
+  final bool needsDecision;
+
+  /// Why, when [needsDecision]: no matching opening, or an ambiguous best.
+  final String? reason;
+
+  /// The best guess when [needsDecision] (null when nothing matched).
+  Alignment? get proposal => alignment;
+}
+
+/// Placements applied per storey and scan session, so a later scan of the same
+/// session with `worldShared` reuses the first one's. Lives for the process.
+final _sessionPlacements = <String, Alignment>{};
+
+/// Like [importScannedRoom] but reports instead of guessing. When [align] and
+/// the storey already holds scanned rooms the new room is moved against them
+/// ([alignScannedRoom]); when that is not confident and [askIfUnsure], nothing
+/// is imported and the result has `needsDecision`. A given [alignment] is used
+/// as is. Scans of one native session with `worldShared` skip matching and
+/// reuse the transform of the session's first scan.
+Future<ScanImport> importScannedRoomChecked(
+  BuildingRepository repo,
+  Resource storey,
+  ScannedRoom room, {
+  String? sourceFileSubject,
+  bool align = true,
+  Alignment? alignment,
+  bool askIfUnsure = true,
+}) async {
+  final key =
+      room.sessionId == null ? null : '${storey.subject}|${room.sessionId}';
+  var use = alignment;
+  if (use == null && align) {
+    final shared =
+        room.worldShared && key != null ? _sessionPlacements[key] : null;
+    if (shared != null) {
+      use = shared;
+    } else {
+      final existing = await loadPlacedRooms(repo, storey);
+      if (existing.isNotEmpty) {
+        final found = alignScannedRoom(existing, room);
+        if (found != null && found.isConfident) {
+          use = found;
+        } else if (askIfUnsure) {
+          return ScanImport(const [],
+              alignment: found,
+              needsDecision: true,
+              reason: found == null
+                  ? 'No door or opening of this room matches one on the plan'
+                  : 'Several placements fit about equally well');
+        }
+      }
+    }
+  }
+  final placed = use == null ? room : applyAlignment(room, use);
+  final created = await _import(repo, storey, placed, sourceFileSubject);
+  if (key != null) _sessionPlacements[key] = use ?? Alignment.identity;
+  return ScanImport(created, alignment: use);
+}
+
 /// Writes [room] into [storey] as proposals: a Source (`scan`), a completed
 /// AnalysisRun (`RoomPlan`), one Space, a wall Element per wall, openings
 /// hosted by the nearest wall and objects as furnishing footprints, each with
-/// Evidence on the Source. Returns the proposed Spaces and Elements. Rooms of
-/// several scans all go into the same storey; their ARKit origins differ, so
-/// they are not aligned with each other.
+/// Evidence on the Source. Returns the proposed Spaces and Elements.
+///
+/// Every scan has its own ARKit origin, so with [align] (the default) and
+/// scanned rooms already in the storey, the room is first moved to fit
+/// against them through a shared door ([alignScannedRoom]); an explicit
+/// [alignment] overrides that. This variant never asks: when no confident
+/// placement exists the room goes in as scanned. To let the person decide use
+/// [importScannedRoomChecked].
 Future<List<Resource>> importScannedRoom(
   BuildingRepository repo,
   Resource storey,
   ScannedRoom room, {
   String? sourceFileSubject,
-}) async {
+  bool align = true,
+  Alignment? alignment,
+}) async =>
+    (await importScannedRoomChecked(repo, storey, room,
+            sourceFileSubject: sourceFileSubject,
+            align: align,
+            alignment: alignment,
+            askIfUnsure: false))
+        .created;
+
+Future<List<Resource>> _import(
+  BuildingRepository repo,
+  Resource storey,
+  ScannedRoom room,
+  String? sourceFileSubject,
+) async {
   final home = await repo.store.getResource(storey.parent!);
   final name = room.name ?? 'Scanned room';
   final source = await repo.addSource(home, name, MediaKind.scan,
@@ -229,7 +337,7 @@ Future<List<Resource>> importScannedRoom(
   }
 
   if (placed.isNotEmpty) {
-    final outline = footprint([for (final (_, _, a) in placed) a]);
+    final outline = chainOutline([for (final (_, _, a) in placed) a]);
     if (outline.length >= 3) {
       final height =
           room.storeyHeight ?? placed.map((p) => p.$3.height).reduce(math.max);

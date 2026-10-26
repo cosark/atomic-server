@@ -1,3 +1,4 @@
+import ARKit
 import Flutter
 import RoomPlan
 import UIKit
@@ -7,6 +8,11 @@ import simd
 /// Channel `io.ontola.atomic_buildings/roomscan`:
 ///   isSupported -> Bool
 ///   scan        -> String (JSON of the contract in lib/src/roomplan.dart) or nil on cancel
+///   endSession  -> nil; the next scan starts a new ARKit world and `sessionId`
+///   mergeRooms  -> String `{"rooms": [<scan JSON>, ...]}` (iOS 17 StructureBuilder) or nil
+/// Consecutive scans share one RoomCaptureView and so one ARSession (see `SharedScan`),
+/// which keeps their ARKit coordinates in one frame: the JSON then carries `sessionId`
+/// and `worldShared: true` on every scan after the first.
 /// Written without a Mac to compile on; see README "Scanning rooms".
 final class RoomScanPlugin: NSObject, FlutterPlugin {
   private var pending: FlutterResult?
@@ -40,6 +46,22 @@ final class RoomScanPlugin: NSObject, FlutterPlugin {
       }
       scanner.modalPresentationStyle = .fullScreen
       presenter.present(scanner, animated: true)
+    case "endSession":
+      SharedScan.shared.reset()
+      result(nil)
+    case "mergeRooms":
+      guard #available(iOS 17.0, *), SharedScan.shared.rooms.count >= 2 else { return result(nil) }
+      let (rooms, id) = (SharedScan.shared.rooms, SharedScan.shared.sessionId)
+      Task { @MainActor in
+        do {
+          let merged = try await StructureBuilder(options: [.beautifyObjects]).capturedStructure(from: rooms)
+          let list = merged.rooms.map { RoomScanViewController.dictionary($0, sessionId: id, shared: true) }
+          let data = try JSONSerialization.data(withJSONObject: ["rooms": list])
+          result(String(decoding: data, as: UTF8.self))
+        } catch {
+          result(FlutterError(code: "merge_failed", message: error.localizedDescription, details: nil))
+        }
+      }
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -55,10 +77,39 @@ final class RoomScanPlugin: NSObject, FlutterPlugin {
   }
 }
 
+/// One RoomCaptureView (so one ARSession) for all scans until `endSession`, so ARKit
+/// world coordinates stay shared. Assumption (untested, no Mac): on iOS 17,
+/// `stop(pauseARSession: false)` leaves the session tracking and a later `run` on the
+/// same RoomCaptureSession does not reset the world origin. On iOS 16 nothing is
+/// assumed: scans are never reported as `worldShared` and Dart matches doors instead.
+final class SharedScan {
+  static let shared = SharedScan()
+  private(set) var sessionId = UUID().uuidString
+  private var view: RoomCaptureView?
+  var rooms: [CapturedRoom] = []  // this session's rooms, for mergeRooms
+  var scans = 0
+
+  func captureView() -> RoomCaptureView {
+    if let view = view { return view }
+    let created = RoomCaptureView(frame: .zero)
+    view = created
+    return created
+  }
+
+  func reset() {
+    view?.captureSession.stop()
+    view = nil
+    rooms = []
+    scans = 0
+    sessionId = UUID().uuidString
+  }
+}
+
 /// Full-screen RoomCaptureView with Start and Done (and Cancel) buttons.
 final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate {
   private let finish: (String?, Error?) -> Void
-  private let captureView = RoomCaptureView(frame: .zero)
+  private let captureView = SharedScan.shared.captureView()
+  private var continued = false  // this scan reuses the previous scan's ARKit world
   private let primary = UIButton(type: .system)
   private let cancel = UIButton(type: .system)
   private var running = false
@@ -74,6 +125,7 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .black
+    captureView.removeFromSuperview()  // it may still sit in the previous scan's view
     captureView.frame = view.bounds
     captureView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     captureView.captureSession.delegate = self
@@ -104,18 +156,35 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
     if running {
       primary.isEnabled = false
       primary.setTitle("Processing...", for: .normal)
-      captureView.captureSession.stop()  // didEndWith follows
+      stopSession()  // didEndWith follows
     } else {
       running = true
       primary.setTitle("Done", for: .normal)
+      // No `.resetTracking`: RoomCaptureSession.run takes only its own Configuration, and
+      // the shared view's ARSession is left running between scans (see `stopSession`).
+      continued = SharedScan.shared.scans > 0 && sessionStillTracking()
       captureView.captureSession.run(configuration: RoomCaptureSession.Configuration())
     }
   }
 
   @objc private func cancelTapped() {
     finished = true
-    if running { captureView.captureSession.stop() }
+    if running { stopSession() }
     dismiss(animated: true) { self.finish(nil, nil) }
+  }
+
+  /// Stops capturing but, on iOS 17, keeps ARKit tracking so the next scan shares the world.
+  private func stopSession() {
+    if #available(iOS 17.0, *) {
+      captureView.captureSession.stop(pauseARSession: false)
+    } else {
+      captureView.captureSession.stop()
+    }
+  }
+
+  private func sessionStillTracking() -> Bool {
+    guard #available(iOS 17.0, *) else { return false }
+    return captureView.captureSession.arSession.currentFrame?.camera.trackingState == .normal
   }
 
   // MARK: RoomCaptureSessionDelegate
@@ -127,7 +196,10 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
       do {
         if let error = error { throw error }
         let room = try await RoomBuilder(options: [.beautifyObjects]).capturedRoom(from: data)
-        let json = try RoomScanViewController.serialize(room)
+        let shared = SharedScan.shared
+        let json = try RoomScanViewController.serialize(room, sessionId: shared.sessionId, shared: self.continued)
+        shared.rooms.append(room)
+        shared.scans += 1
         self.dismiss(animated: true) { self.finish(json, nil) }
       } catch {
         self.dismiss(animated: true) { self.finish(nil, error) }
@@ -137,7 +209,12 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
 
   // MARK: JSON contract
 
-  private static func serialize(_ room: CapturedRoom) throws -> String {
+  private static func serialize(_ room: CapturedRoom, sessionId: String, shared: Bool) throws -> String {
+    let data = try JSONSerialization.data(withJSONObject: dictionary(room, sessionId: sessionId, shared: shared))
+    return String(decoding: data, as: UTF8.self)
+  }
+
+  static func dictionary(_ room: CapturedRoom, sessionId: String, shared: Bool) -> [String: Any] {
     var surfaces: [[String: Any]] = []
     func add(_ list: [CapturedRoom.Surface], _ category: String) {
       for s in list {
@@ -157,9 +234,7 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
     let objects = room.objects.map {
       item($0.identifier, name($0.category), $0.transform, $0.dimensions, $0.confidence)
     }
-    let json: [String: Any] = ["surfaces": surfaces, "objects": objects]
-    let data = try JSONSerialization.data(withJSONObject: json)
-    return String(decoding: data, as: UTF8.self)
+    return ["surfaces": surfaces, "objects": objects, "sessionId": sessionId, "worldShared": shared]
   }
 
   private static func item(

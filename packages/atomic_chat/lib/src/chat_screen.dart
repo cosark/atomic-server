@@ -89,6 +89,11 @@ class ChatScreen extends StatefulWidget {
   /// Gets photos and files to attach; [defaultAttachmentPicker] when null.
   final AttachmentPicker? attachmentPicker;
 
+  /// Extra buttons of the title bar (before the resource menu), and extra
+  /// rows of the attach sheet, from the host.
+  final List<Widget> actions;
+  final List<AttachAction> attachActions;
+
   /// The tools the model may call; the assistant's read-only tools
   /// ([assistantTools]) when null. Only an AI that reports tool calls gets
   /// them.
@@ -121,6 +126,8 @@ class ChatScreen extends StatefulWidget {
     this.tools,
     this.toolBridge,
     this.attachmentPicker,
+    this.actions = const [],
+    this.attachActions = const [],
   });
 
   @override
@@ -1589,7 +1596,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                 api: widget.api,
                                 drive: widget.drive,
                                 subject: _chat!),
-                        actions: const [ResourceMoreButton()],
+                        actions: [...widget.actions, const ResourceMoreButton()],
                         titleWidget: InkWell(
                           key: const Key('chat-title'),
                           onTap: _chat == null ? null : _askRename,
@@ -1996,7 +2003,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (ai == null) return;
     final picker = widget.attachmentPicker ?? defaultAttachmentPicker;
     final choice = await showAttachSheet(context,
-        picker: picker, images: ai.acceptsImages);
+        picker: picker, images: ai.acceptsImages, extra: widget.attachActions);
     if (choice == null || !mounted) return;
     if (choice == AttachChoice.drive) {
       await _readPicker();
@@ -2028,7 +2035,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     String? problem;
     final parts = <FilePart>[];
     for (final f in files) {
-      final p = attachmentProblem(f, images: ai.acceptsImages);
+      final p =
+          attachmentProblem(f, images: ai.acceptsImages, picker: picker);
       if (p != null) {
         problem = p;
         continue;

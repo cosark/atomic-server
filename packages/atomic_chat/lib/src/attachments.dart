@@ -46,6 +46,11 @@ abstract class AttachmentPicker {
 
   /// Files of any kind; empty when the person cancels.
   Future<List<PickedFile>> pickFiles();
+
+  /// Whether the host keeps [file] though the AI cannot read it (a PDF, a
+  /// drawing): it is attached and stored by the host, and the AI is told it
+  /// cannot read it. Off by default: only images and text files are attached.
+  bool keeps(PickedFile file) => false;
 }
 
 /// The picker every chat uses unless given its own; set by the host.
@@ -61,12 +66,21 @@ const maxImageSide = 1280;
 
 /// Why [file] cannot be attached; null when it can. [images] says whether
 /// the AI looks at images.
-String? attachmentProblem(PickedFile file, {required bool images}) {
+String? attachmentProblem(
+  PickedFile file, {
+  required bool images,
+  AttachmentPicker? picker,
+}) {
   final image = file.mediaType.startsWith('image/');
   if (image) {
     if (!images) return "This AI can't see images.";
     if (file.bytes.length > maxImageBytes) return '${file.name} is too large.';
     return null;
+  }
+  if (picker != null && picker.keeps(file)) {
+    return file.bytes.length > maxImageBytes
+        ? '${file.name} is too large.'
+        : null;
   }
   if (!isTextMediaType(file.mediaType, file.name)) {
     return "Can't read ${file.name}: the AI reads text files and images.";
@@ -122,6 +136,20 @@ Future<Uint8List?> _shrink(Uint8List bytes) async {
   }
 }
 
+/// An extra row of the attach sheet that the host adds (Scan room): it
+/// closes the sheet and runs [run].
+class AttachAction {
+  final String label;
+  final IconData icon;
+  final Future<void> Function() run;
+
+  const AttachAction({
+    required this.label,
+    required this.icon,
+    required this.run,
+  });
+}
+
 /// What the attach button offers.
 enum AttachChoice { photos, camera, file, drive }
 
@@ -132,56 +160,73 @@ Future<AttachChoice?> showAttachSheet(
   BuildContext context, {
   required AttachmentPicker? picker,
   required bool images,
+  List<AttachAction> extra = const [],
 }) {
   final c = context.appColors;
   const noPicker = 'Not available in this app yet';
   const noImages = 'The included AI reads text only';
-  Widget tile(AttachChoice choice, IconData icon, String title,
-          {String? off}) =>
-      ListTile(
-        key: Key('attach-${choice.name}'),
-        leading: Icon(icon, color: off == null ? c.main : c.textSecondary),
-        title: Text(title),
-        subtitle: off == null ? null : Text(off),
-        enabled: off == null,
-        onTap: () => Navigator.pop(context, choice),
-      );
+  Widget tile(
+    AttachChoice choice,
+    IconData icon,
+    String title, {
+    String? off,
+  }) => ListTile(
+    key: Key('attach-${choice.name}'),
+    leading: Icon(icon, color: off == null ? c.main : c.textSecondary),
+    title: Text(title),
+    subtitle: off == null ? null : Text(off),
+    enabled: off == null,
+    onTap: () => Navigator.pop(context, choice),
+  );
   return showModalBottomSheet<AttachChoice>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
     builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          tile(
-            AttachChoice.photos,
-            Icons.photo_library_outlined,
-            'Photo library',
-            off: picker == null || !picker.canPickImages
-                ? noPicker
-                : images
-                    ? null
-                    : noImages,
-          ),
-          tile(
-            AttachChoice.camera,
-            Icons.photo_camera_outlined,
-            'Camera',
-            off: picker == null || !picker.canTakePhoto
-                ? noPicker
-                : images
-                    ? null
-                    : noImages,
-          ),
-          tile(
-            AttachChoice.file,
-            Icons.attach_file,
-            'File',
-            off: picker == null ? noPicker : null,
-          ),
-          tile(AttachChoice.drive, Icons.folder_outlined, 'From my drive'),
-          const SizedBox(height: 8),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            tile(
+              AttachChoice.photos,
+              Icons.photo_library_outlined,
+              'Photo library',
+              off: picker == null || !picker.canPickImages
+                  ? noPicker
+                  : images
+                  ? null
+                  : noImages,
+            ),
+            tile(
+              AttachChoice.camera,
+              Icons.photo_camera_outlined,
+              'Camera',
+              off: picker == null || !picker.canTakePhoto
+                  ? noPicker
+                  : images
+                  ? null
+                  : noImages,
+            ),
+            tile(
+              AttachChoice.file,
+              Icons.attach_file,
+              'File',
+              off: picker == null ? noPicker : null,
+            ),
+            tile(AttachChoice.drive, Icons.folder_outlined, 'From my drive'),
+            for (final a in extra)
+              ListTile(
+                key: Key('attach-extra-${a.label}'),
+                leading: Icon(a.icon, color: c.main),
+                title: Text(a.label),
+                onTap: () {
+                  Navigator.pop(context);
+                  a.run();
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     ),
   );
@@ -192,13 +237,12 @@ Future<ContextResource?> showDrivePicker(
   BuildContext context, {
   required AssistantApi api,
   required List<RecentResource> recent,
-}) =>
-    showModalBottomSheet<ContextResource>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _DrivePicker(api: api, recent: recent),
-    );
+}) => showModalBottomSheet<ContextResource>(
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  builder: (_) => _DrivePicker(api: api, recent: recent),
+);
 
 class _DrivePicker extends StatefulWidget {
   final AssistantApi api;
@@ -269,9 +313,11 @@ class _DrivePickerState extends State<_DrivePicker> {
       else if (hits.isEmpty)
         Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Nothing found',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: c.textSecondary)),
+          child: Text(
+            'Nothing found',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.textSecondary),
+          ),
         )
       else
         for (final h in hits)
@@ -315,10 +361,9 @@ class _DrivePickerState extends State<_DrivePicker> {
   }
 
   Widget _heading(AppColors c, String text) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-        child:
-            Text(text, style: TextStyle(color: c.textSecondary, fontSize: 12)),
-      );
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+    child: Text(text, style: TextStyle(color: c.textSecondary, fontSize: 12)),
+  );
 }
 
 /// An attached image, small.
@@ -343,8 +388,8 @@ class AttachmentThumb extends StatelessWidget {
             : Image.memory(
                 bytes,
                 fit: BoxFit.cover,
-                cacheWidth:
-                    (size * MediaQuery.devicePixelRatioOf(context)).round(),
+                cacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                    .round(),
                 gaplessPlayback: true,
                 errorBuilder: (_, __, ___) =>
                     Icon(Icons.broken_image_outlined, color: c.textSecondary),
@@ -412,10 +457,12 @@ class AttachmentChip extends StatelessWidget {
                   radius: 14,
                   child: Padding(
                     padding: const EdgeInsets.all(3),
-                    child: Icon(Icons.close,
-                        size: 14,
-                        semanticLabel: 'Remove $label',
-                        color: c.textSecondary),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      semanticLabel: 'Remove $label',
+                      color: c.textSecondary,
+                    ),
                   ),
                 ),
             ],

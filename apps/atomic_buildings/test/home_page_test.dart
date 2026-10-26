@@ -1,6 +1,7 @@
 import 'package:atomic_buildings/src/geometry.dart';
 import 'package:atomic_buildings/src/repository.dart';
 import 'package:atomic_buildings/ui/home_page.dart';
+import 'chat_helpers.dart';
 import 'package:atomic_buildings/ui/plan_view.dart';
 import 'package:atomic_store/atomic_store.dart';
 import 'package:atomic_store/testing.dart';
@@ -37,7 +38,6 @@ void main() {
           about: wall, why: 'Decides if it can be removed');
     });
 
-    await tester.pumpWidget(MaterialApp(home: HomePage(repo, home)));
     // The store's futures run outside fake async; a watch needs a few turns
     // (storeys first, then the plan's own two watches).
     Future<void> settle() async {
@@ -48,6 +48,9 @@ void main() {
       }
     }
 
+    await tester.pumpWidget(chatApp(HomePage(repo, home, chat: noAccountChat)));
+    await settle();
+    await openScreen(tester, 'Plan');
     await settle();
     final plan = find
         .byWidgetPredicate((w) => w is CustomPaint && w.painter is PlanPainter);
@@ -55,18 +58,22 @@ void main() {
     expect(find.byType(CustomPaint), findsWidgets);
 
     String? written;
-    await tester.pumpWidget(MaterialApp(
-        home: HomePage(repo, home, writeExport: (name, glb) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(chatApp(HomePage(repo, home,
+        chat: noAccountChat, key: UniqueKey(), writeExport: (name, glb) async {
       written = '$name:${glb.length}';
       return '/docs/$name';
     })));
     await settle();
+    await openScreen(tester, 'Plan');
     await tester.tap(find.byTooltip('Export 3D model'));
     await settle();
     expect(written, startsWith('Villa.glb:'));
     expect(find.text('3D model saved to /docs/Villa.glb'), findsOneWidget);
 
-    await tester.tap(find.text('Questions'));
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await openScreen(tester, 'Questions');
     await settle();
     expect(find.text('Is the north wall load-bearing?'), findsOneWidget);
     expect(find.text('Decides if it can be removed'), findsOneWidget);

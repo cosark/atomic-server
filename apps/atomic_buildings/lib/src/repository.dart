@@ -168,6 +168,7 @@ class BuildingRepository {
     String? file,
     DateTime? capturedAt,
     String status = 'new',
+    String? description,
   }) =>
       _create(home.subject, BuildingClass.source, {
         Props.name: name,
@@ -176,6 +177,7 @@ class BuildingRepository {
         Bldg.capturedAt: TimestampValue(
             (capturedAt ?? DateTime.now()).millisecondsSinceEpoch),
         if (file != null) Bldg.sourceFile: LinkValue(file),
+        if (description != null) Props.description: description,
       });
 
   Future<Resource> addEvidence(
