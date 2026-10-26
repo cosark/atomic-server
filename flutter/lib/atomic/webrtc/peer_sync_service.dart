@@ -33,6 +33,7 @@ class WebRtcPeerSyncService {
     PeerConnectionFactory? connect,
     this.signaling,
     this.onStatus,
+    this.onChanged,
   }) : _connect = connect ?? FlutterWebRtcConnection.create;
 
   final PeerLinkBackend backend;
@@ -51,6 +52,9 @@ class WebRtcPeerSyncService {
   final PeerConnectionFactory _connect;
   final SignalingConnector? signaling;
   final void Function(String drive, String status)? onStatus;
+
+  /// Called with the subjects a peer changed on this device.
+  final void Function(List<String> subjects)? onChanged;
 
   final _meshes = <String, WebRtcPeerMesh>{};
   final _statuses = <String, String>{};
@@ -113,6 +117,7 @@ class WebRtcPeerSyncService {
             _statuses[drive] = status;
             onStatus?.call(drive, status);
           },
+          onChanged: onChanged,
         )..start();
       } catch (e) {
         // Retried at the next scan.

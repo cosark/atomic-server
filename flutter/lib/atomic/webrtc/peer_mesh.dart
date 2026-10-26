@@ -33,6 +33,7 @@ class WebRtcPeerMesh {
     this.iceServers,
     this.expectedPeer,
     this.onStatus,
+    this.onChanged,
     String? peerId,
     String? room,
     this.reconnectDelay = const Duration(seconds: 3),
@@ -57,6 +58,10 @@ class WebRtcPeerMesh {
   /// The agent a drive must come from when this device does not hold it yet.
   final String? expectedPeer;
   final void Function(String status)? onStatus;
+
+  /// Called with the subjects a peer's frame changed on this device, so what
+  /// shows them can read the store again.
+  final void Function(List<String> subjects)? onChanged;
   final String peerId;
   final Duration reconnectDelay;
   final Duration reconcileEvery;
@@ -359,6 +364,7 @@ class _Peer {
         for (final reply in output.frames) {
           await transport.send(reply);
         }
+        if (output.changed.isNotEmpty) mesh.onChanged?.call(output.changed);
         if (output.ready && !_started) {
           _started = true;
           _authTimer?.cancel();
