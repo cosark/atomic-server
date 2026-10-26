@@ -407,11 +407,24 @@ window.atomicEmbed = {
   },
   changed(subjects) {
     // `getResource` answers a resource the page already holds from memory,
-    // so a change made outside the page (renamed in the app's own screen)
-    // never showed: read it from the host again.
+    // so a change made outside the page (renamed in the app's own screen, or
+    // edited on another device) never showed. The host's state is merged
+    // into the page's copy, so an open document follows live and keeps the
+    // edits it has not handed over yet.
     for (const subject of subjects) {
-      if (store.getResourceLoading(subject).hasPendingCommits) continue;
-      void store.reloadResource(subject).catch(() => undefined);
+      if (!store.resources.has(subject)) continue;
+      void db
+        .getLoroSnapshot(subject)
+        .then(loroBytes => {
+          if (loroBytes)
+            store.applyIncoming({
+              subject,
+              loroBytes,
+              source: 'peer-sync',
+              forceNotify: true,
+            });
+        })
+        .catch(() => undefined);
     }
   },
   /** One step back in the page's own history; false when there is none. */

@@ -74,6 +74,9 @@ class AtomicAssistantApi extends AssistantApi {
   @override
   Listenable? get storeChanges => AtomicClient.storeRevision;
   @override
+  Stream<List<String>>? get resourceChanges =>
+      AtomicClient.resourceChanges.stream;
+  @override
   Future<List<ChatRoomMessage>> chatRoomMessages(String subject) =>
       AtomicClient.readChatRoom(subject);
   @override

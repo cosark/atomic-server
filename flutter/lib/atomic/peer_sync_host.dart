@@ -69,7 +69,7 @@ class PeerSyncHost {
       onStatus: (drive, status) => debugPrint('Peer sync $drive: $status'),
       // A favorite or message from the browser shows at once, not at the next
       // periodic re-read.
-      onChanged: (_) => AtomicClient.notifyStoreChanged(),
+      onChanged: AtomicClient.notifyResourcesChanged,
     );
     // Drives created or joined while the app runs.
     _rescan ??= Timer.periodic(const Duration(minutes: 2), (_) {

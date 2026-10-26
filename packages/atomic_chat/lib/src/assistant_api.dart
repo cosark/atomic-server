@@ -80,6 +80,11 @@ abstract class AssistantApi {
   /// the host cannot tell (they poll).
   Listenable? get storeChanges => null;
 
+  /// The subjects another device changed in the local store, as they arrive
+  /// (a peer's live edit): an open page shows them at once. Null: the host
+  /// cannot tell.
+  Stream<List<String>>? get resourceChanges => null;
+
   /// The chat of a meeting or chat room, oldest first.
   Future<List<ChatRoomMessage>> chatRoomMessages(String subject);
 

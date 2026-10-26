@@ -150,6 +150,8 @@ class _ResourceViewState extends State<ResourceView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     AppSidebarIcons.show.addListener(_tellSidebarIcons);
+    _changes = widget.api.resourceChanges?.listen(_tellChanged);
+    widget.api.storeChanges?.addListener(_storeChanged);
     // A resource page in a real web view starts covered; a page of the app's
     // own (settings) and a test's page do not.
     if (widget.path == null && !_menuOnly) {
@@ -435,9 +437,27 @@ class _ResourceViewState extends State<ResourceView>
     }
   }
 
+  StreamSubscription<List<String>>? _changes;
+
+  /// Another device changed resources: the page merges what it shows of them,
+  /// so an open document follows the other device's edits live.
+  void _tellChanged(List<String> subjects) {
+    if (_menuOnly) return;
+    unawaited(_page
+        ?.runJavaScript('window.atomicEmbed?.changed(${jsonEncode(subjects)})')
+        .catchError((Object _) {}));
+  }
+
+  /// A sync that tells no subjects (a server's) may have changed this one.
+  void _storeChanged() {
+    if (widget.subject.isNotEmpty) _tellChanged([widget.subject]);
+  }
+
   @override
   void dispose() {
     _revealCap?.cancel();
+    unawaited(_changes?.cancel());
+    widget.api.storeChanges?.removeListener(_storeChanged);
     WidgetsBinding.instance.removeObserver(this);
     AppSidebarIcons.show.removeListener(_tellSidebarIcons);
     final route = _route;

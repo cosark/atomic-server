@@ -754,6 +754,14 @@ class AtomicClient {
     storeRevision.value++;
   }
 
+  /// The subjects a peer changed in the store, as its frames arrive.
+  static final resourceChanges = StreamController<List<String>>.broadcast();
+
+  static void notifyResourcesChanged(List<String> subjects) {
+    resourceChanges.add(subjects);
+    notifyStoreChanged();
+  }
+
   static void notifyLivePeersChanged() {
     livePeersRevision.value++;
   }
