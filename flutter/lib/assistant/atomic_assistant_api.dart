@@ -74,6 +74,25 @@ class AtomicAssistantApi extends AssistantApi {
   @override
   Listenable? get storeChanges => AtomicClient.storeRevision;
   @override
+  Future<List<PresenceItem>> presence(String drive) async =>
+      (await AtomicClient.presence(drive)).map(PresenceItem.fromJson).toList();
+  @override
+  Listenable? get presenceChanges => AtomicClient.presenceRevision;
+  @override
+  Future<void> announcePresence(String drive,
+          {String? resource, String? following}) =>
+      AtomicClient.setPresence(
+          drive, {'resource': resource, 'following': following});
+  @override
+  Future<void> clearPresence(String drive) => AtomicClient.clearPresence(drive);
+  @override
+  Future<ProfileIdentity?> identityOf(String agent) async {
+    final name = await AtomicClient.getProperty(
+            agent, 'https://atomicdata.dev/properties/name')
+        .catchError((Object _) => '');
+    return name.isEmpty ? null : ProfileIdentity(name: name, subject: agent);
+  }
+  @override
   Stream<List<String>>? get resourceChanges =>
       AtomicClient.resourceChanges.stream;
   @override

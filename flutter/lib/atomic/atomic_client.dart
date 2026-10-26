@@ -34,6 +34,7 @@ import 'package:atomic_store_flutter/bridge/api/simple/agent.dart' as ffi;
 import 'package:atomic_store_flutter/bridge/api/simple/drive.dart' as ffi;
 import 'package:atomic_store_flutter/bridge/api/simple/files.dart' as ffi;
 import 'package:atomic_store_flutter/bridge/api/simple/peers.dart' as ffi;
+import 'package:atomic_store_flutter/bridge/api/simple/presence.dart' as presence_ffi;
 import 'package:atomic_store_flutter/bridge/api/simple/resource.dart' as ffi;
 import 'package:atomic_store_flutter/bridge/api/simple/store.dart' as ffi;
 import 'package:atomic_store_flutter/bridge/api/simple/sync.dart' as ffi;
@@ -757,6 +758,28 @@ class AtomicClient {
   /// The subjects a peer changed in the store, as its frames arrive.
   static final resourceChanges = StreamController<List<String>>.broadcast();
 
+  /// Tells [drive] what this device shows (the web's presence entry: `resource`,
+  /// `following`). Rust stamps the agent and keeps it alive while it stands.
+  static Future<void> setPresence(String drive, Map<String, Object?> entry) =>
+      presence_ffi.setPresence(
+          drive: drive,
+          entryJson: jsonEncode({
+            for (final e in entry.entries)
+              if (e.value != null) e.key: e.value,
+          }));
+
+  static Future<void> clearPresence(String drive) =>
+      presence_ffi.clearPresence(drive: drive);
+
+  /// The other sessions on [drive]'s presence channel, as the web's entries.
+  static Future<List<Map<String, dynamic>>> presence(String drive) async =>
+      (jsonDecode(await presence_ffi.presence(drive: drive)) as List)
+          .cast<Map<String, dynamic>>();
+
+  /// Bumped when presence changed in any drive: Rust counts, this asks it
+  /// once a second while something listens.
+  static final presenceRevision = _PresenceRevision();
+
   static void notifyResourcesChanged(List<String> subjects) {
     resourceChanges.add(subjects);
     notifyStoreChanged();
@@ -916,5 +939,30 @@ class PeerSyncResult {
     }
 
     return 'Nothing to sync$withWhom';
+  }
+}
+
+class _PresenceRevision extends ChangeNotifier {
+  Timer? _poll;
+  BigInt _seen = BigInt.zero;
+
+  @override
+  void addListener(VoidCallback listener) {
+    super.addListener(listener);
+    _poll ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      final now = presence_ffi.presenceRevision();
+      if (now == _seen) return;
+      _seen = now;
+      notifyListeners();
+    });
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) {
+      _poll?.cancel();
+      _poll = null;
+    }
   }
 }
