@@ -58,6 +58,8 @@ pub(crate) struct SyncSession {
     client: Mutex<Option<Arc<WsClient>>>,
     sink: Mutex<Option<Arc<dyn CommitSink>>>,
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Forwards the presence hub's updates to the server.
+    presence_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     origin: Mutex<Option<String>>,
     /// Drives a server refused (401/403) for an agent: not asked again.
     denied: Mutex<DeniedDrives>,
@@ -114,6 +116,11 @@ impl SyncSession {
                 handle.abort();
             }
         }
+        if let Ok(mut guard) = self.presence_task.lock() {
+            if let Some(handle) = guard.take() {
+                handle.abort();
+            }
+        }
         if let Ok(mut guard) = self.client.lock() {
             *guard = None;
         }
@@ -162,7 +169,14 @@ impl SyncSession {
                 "[ws_sync] subscribed to drive {}",
                 &drive[..drive.len().min(24)]
             );
+            subscribe_presence(&client, drive).await;
         }
+
+        // Local presence updates go out; the server's come in via the loop
+        // below. The forwarder listens before the heartbeat, so that it sends
+        // our entry to the server's fresh per-connection cache.
+        let presence_handle = spawn_presence_forwarder(client.clone(), store);
+        atomic_lib::host::presence::heartbeat(store);
 
         let client_loop = client.clone();
         let store_loop = store.clone();
@@ -192,6 +206,9 @@ impl SyncSession {
         }
         if let Ok(mut guard) = self.task.lock() {
             *guard = Some(handle);
+        }
+        if let Ok(mut guard) = self.presence_task.lock() {
+            *guard = Some(presence_handle);
         }
 
         let mut have_drive = false;
@@ -354,7 +371,10 @@ impl SyncSession {
         // Fetch before subscribing: a refusal then costs one request, not a
         // SUB and a GET that both fail.
         self.ensure_drive_materialized(store, drive).await?;
-        client.subscribe_drive(drive).await.map_err(err)
+        client.subscribe_drive(drive).await.map_err(err)?;
+        subscribe_presence(&client, drive).await;
+        atomic_lib::host::presence::heartbeat(store);
+        Ok(())
     }
 
     /// Ask the server for what `store` lacks of `drive`: a `SYNC` with its
@@ -459,6 +479,40 @@ pub async fn post_commit_over_ws(commit_json: &str) -> Result<String, String> {
     default_store()?.sync.post_commit(commit_json).await
 }
 
+/// Join the drive's presence channel on this connection. Done for every drive
+/// the session subscribes, after each (re)connect (a reconnect is a new
+/// `open`). A failure costs only presence, so it is logged, not returned.
+async fn subscribe_presence(client: &WsClient, drive: &str) {
+    if let Err(e) = client.subscribe_presence(drive).await {
+        tracing::warn!("[ws_sync] presence subscribe failed: {e}");
+    }
+}
+
+/// Send the presence hub's own updates (not those that came from this
+/// session's server) over `client`. Ends with the store's event channel or
+/// when aborted by [`SyncSession::close`].
+fn spawn_presence_forwarder(
+    client: Arc<WsClient>,
+    store: &atomic_lib::Db,
+) -> tokio::task::JoinHandle<()> {
+    let mut events = store.subscribe_ephemeral();
+    tokio::spawn(async move {
+        loop {
+            match events.recv().await {
+                Ok(event) => {
+                    if event.kind == protocol::ephemeral_kind::PRESENCE && event.from_peer != "ws" {
+                        if let Err(e) = client.send_presence_update(&event.drive, &event.payload).await {
+                            tracing::debug!("[ws_sync] presence send failed: {e}");
+                        }
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+    })
+}
+
 async fn handle_ws_message(store: &atomic_lib::Db, msg: WsMessage) -> Result<(), String> {
     match msg {
         WsMessage::Update {
@@ -481,6 +535,21 @@ async fn handle_ws_message(store: &atomic_lib::Db, msg: WsMessage) -> Result<(),
             ws_apply::apply_destroy(store, &subject)
                 .await
                 .map_err(err)?;
+        }
+        // Another session's presence in a drive: onto the ephemeral channel,
+        // where the hub (and WebRTC links) pick it up.
+        WsMessage::PresenceUpdate { subject, update } => {
+            let agent = store
+                .get_default_agent()
+                .map(|a| a.subject.to_string())
+                .unwrap_or_default();
+            store.publish_ephemeral(atomic_lib::db::EphemeralEvent {
+                kind: protocol::ephemeral_kind::PRESENCE,
+                drive: subject,
+                agent,
+                payload: update,
+                from_peer: "ws".into(),
+            });
         }
         WsMessage::Error { code, message, .. } => {
             tracing::warn!("[ws_sync] server error (code {code}): {message}")
@@ -597,5 +666,35 @@ mod denied_tests {
         m.deny("me", d, o, t0);
         m.clear();
         assert!(m.check("me", d, o, t0).is_none());
+    }
+}
+
+#[cfg(test)]
+mod presence_tests {
+    use super::*;
+
+    /// A presence frame from the server lands on the ephemeral channel, tagged
+    /// "ws" so the forwarder does not send it back and the hub applies it.
+    #[tokio::test]
+    async fn server_presence_is_published_as_ws_ephemeral() {
+        let dir = std::env::temp_dir().join(format!("atomic-bridge-presence-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = atomic_lib::Db::init_redb_file(&dir, None, &dir.join("uploads")).await.unwrap();
+        let mut events = store.subscribe_ephemeral();
+        handle_ws_message(
+            &store,
+            WsMessage::PresenceUpdate {
+                subject: "did:ad:drive".into(),
+                update: vec![1, 2, 3],
+            },
+        )
+        .await
+        .unwrap();
+        let event = events.recv().await.unwrap();
+        assert_eq!(event.kind, protocol::ephemeral_kind::PRESENCE);
+        assert_eq!(event.drive, "did:ad:drive");
+        assert_eq!(event.payload, vec![1, 2, 3]);
+        assert_eq!(event.from_peer, "ws");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

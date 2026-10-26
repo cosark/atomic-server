@@ -13,6 +13,7 @@ import 'api/simple/agent.dart';
 import 'api/simple/drive.dart';
 import 'api/simple/files.dart';
 import 'api/simple/peers.dart';
+import 'api/simple/presence.dart';
 import 'api/simple/resource.dart';
 import 'api/simple/store.dart';
 import 'api/simple/sync.dart';

@@ -34,6 +34,7 @@ pub mod resource;
 pub mod sync;
 pub mod peers;
 pub mod webrtc_peer;
+pub mod presence;
 
 pub(crate) use local_write::*;
 pub use store::*;
