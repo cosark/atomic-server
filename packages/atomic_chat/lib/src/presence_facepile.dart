@@ -66,6 +66,16 @@ class PresenceWatch extends ChangeNotifier {
     try {
       final read = await api.presence(drive);
       if (_disposed) return;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final item in read) {
+        final before = items.where((i) => i.sessionId == item.sessionId);
+        if (before.isEmpty || before.first.resource != item.resource) {
+          // How long a move took to show here, as the other device's clock
+          // counts (its `updatedAt`).
+          debugPrint('[presence] ${item.sessionId} on ${item.resource}, '
+              '${now - item.updatedAt} ms after it was set');
+        }
+      }
       items = read;
       notifyListeners();
       for (final item in read) {
@@ -189,6 +199,7 @@ Future<PresenceChoice?> showPresenceSheet(
   required PresenceItem who,
   required ProfileIdentity? identity,
   required bool following,
+  bool canMessage = true,
 }) {
   return showModalBottomSheet<PresenceChoice>(
     context: context,
@@ -208,11 +219,12 @@ Future<PresenceChoice?> showPresenceSheet(
             title: const Text('Profile'),
             onTap: () => pick(PresenceChoice.profile),
           ),
-          ListTile(
-            leading: const Icon(Icons.chat_bubble_outline),
-            title: const Text('Message'),
-            onTap: () => pick(PresenceChoice.message),
-          ),
+          if (canMessage)
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: const Text('Message'),
+              onTap: () => pick(PresenceChoice.message),
+            ),
           if (following)
             ListTile(
               leading: const Icon(Icons.person_off_outlined),

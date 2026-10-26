@@ -24,6 +24,8 @@ class _PresenceApi extends UnimplementedApi {
   @override
   Future<void> clearPresence(String drive) async => cleared.add(drive);
   @override
+  Future<String?> conversationWith(String agent) async => 'dm-$agent';
+  @override
   Future<ProfileIdentity?> identityOf(String agent) async =>
       ProfileIdentity(name: 'Name of $agent');
 }

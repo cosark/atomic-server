@@ -531,13 +531,19 @@ class _ResourceViewState extends State<ResourceView>
   Future<void> _avatarTapped(PresenceItem who) async {
     final watch = _watch!;
     final identity = watch.identity(who.agent);
+    // Message only where a conversation can be opened.
+    final conversation = await widget.api
+        .conversationWith(who.agent)
+        .catchError((Object _) => null);
+    if (!mounted) return;
     _sheetOpen = true;
     PresenceChoice? choice;
     try {
       choice = await showPresenceSheet(context,
           who: who,
           identity: identity,
-          following: _follow.isFollowing(who.agent));
+          following: _follow.isFollowing(who.agent),
+          canMessage: conversation != null);
     } finally {
       _sheetOpen = false;
     }
@@ -550,6 +556,7 @@ class _ResourceViewState extends State<ResourceView>
       case PresenceChoice.stopFollowing:
         _follow.stop();
       case PresenceChoice.profile:
+        debugPrint('[presence] opening the profile ${who.agent}');
         unawaited(Navigator.of(context).push(SlideBackRoute<void>(
           builder: (_) => openResourceView(
               api: widget.api,
@@ -558,8 +565,7 @@ class _ResourceViewState extends State<ResourceView>
               title: identity?.name?.trim() ?? ''),
         )));
       case PresenceChoice.message:
-        final conversation = await widget.api.conversationWith(who.agent);
-        if (!mounted || conversation == null) return;
+        if (conversation == null) return;
         unawaited(Navigator.of(context).push(SlideBackRoute<void>(
           builder: (_) => ConversationScreen(
               api: widget.api,

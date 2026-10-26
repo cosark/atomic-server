@@ -242,6 +242,14 @@ impl PresenceHub {
             return;
         }
         let applied = self.with_drive(&event.drive, |state| state.store.apply(&event.payload));
+        // Which way presence arrives first (and how often) is what a slow
+        // follow comes down to.
+        tracing::info!(
+            "[presence] {} bytes for {} from {}",
+            event.payload.len(),
+            event.drive,
+            event.from_peer
+        );
         match applied {
             Ok(()) => bump(),
             Err(e) => tracing::debug!("[presence] ignored a bad update: {e}"),

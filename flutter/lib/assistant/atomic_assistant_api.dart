@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:atomic_chat/atomic_chat.dart';
@@ -91,6 +92,21 @@ class AtomicAssistantApi extends AssistantApi {
             agent, 'https://atomicdata.dev/properties/name')
         .catchError((Object _) => '');
     return name.isEmpty ? null : ProfileIdentity(name: name, subject: agent);
+  }
+  /// The existing direct conversation with [agent]. Starting a new one
+  /// needs the conversation keys the app cannot make yet, so none is created.
+  @override
+  Future<String?> conversationWith(String agent) async {
+    String key(String s) => s.replaceFirst(RegExp(r'^(atomic|did:ad):'), '');
+    final rows = jsonDecode(await ffi_assistant.listConversations(limit: 200))
+        as List;
+    for (final row in rows.cast<Map<String, dynamic>>()) {
+      final peer = row['peer'];
+      if (peer is Map && key('${peer['subject']}') == key(agent)) {
+        return row['subject'] as String?;
+      }
+    }
+    return null;
   }
   @override
   Stream<List<String>>? get resourceChanges =>
