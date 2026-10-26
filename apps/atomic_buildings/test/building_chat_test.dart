@@ -158,7 +158,7 @@ void main() {
       expect(() => api.conversations(), throwsUnsupportedError);
       expect(() => api.activity(5), throwsUnsupportedError);
       expect(() => api.webUrl('x'), throwsUnsupportedError);
-      expect(api.signUpForAi('a@b.c'), throwsUnsupportedError);
+      expect(api.canConnectAccount, false);
     });
   });
 

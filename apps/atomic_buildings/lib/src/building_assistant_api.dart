@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:atomic_chat/atomic_chat.dart';
 import 'package:atomic_store/atomic_store.dart';
+import 'package:flutter/widgets.dart' show BuildContext;
 
 import 'building_tools.dart';
 import 'repository.dart';
@@ -47,7 +48,7 @@ String _size(int? n) => n == null
 /// Home in the app's [Store], the AI is the linked account's, and what the
 /// person attaches becomes Sources.
 ///
-/// Real: [hostedAi], [signUpForAi], [newChat], [addEntry], [addMessage],
+/// Real: [hostedAi], [connectAccount], [newChat], [addEntry], [addMessage],
 /// [chatEntries], [messages], [resourceText], [renameResource], and empty
 /// answers for what the chat screen asks while it is open ([drives],
 /// [recentResources], [favorites], [search], [resourceIcons]). Everything else
@@ -55,7 +56,7 @@ String _size(int? n) => n == null
 /// resources, the embedded renderer) throws [UnsupportedError].
 class BuildingAssistantApi extends AssistantApi {
   BuildingAssistantApi(this.repo, this.home, this.tools,
-      {required this.account, this.signUp});
+      {required this.account, this.connect});
 
   final BuildingRepository repo;
   final Resource home;
@@ -64,8 +65,8 @@ class BuildingAssistantApi extends AssistantApi {
   /// The linked account's AI, or null when no account is linked.
   final Future<HostedAi?> Function() account;
 
-  /// Mails a sign-up link for this device's agent; null when not offered.
-  final Future<void> Function(String email)? signUp;
+  /// Signs in to the account (or creates it); null when not offered.
+  final Future<void> Function(BuildContext context)? connect;
 
   Store get _store => repo.store;
 
@@ -180,15 +181,15 @@ class BuildingAssistantApi extends AssistantApi {
   }
 
   @override
-  bool get canSignUpForAi => signUp != null;
+  bool get canConnectAccount => connect != null;
 
   @override
-  Future<void> signUpForAi(String email) async {
-    final signUp = this.signUp;
-    if (signUp == null) {
-      throw UnsupportedError('This app cannot create an account');
+  Future<void> connectAccount(BuildContext context) async {
+    final connect = this.connect;
+    if (connect == null) {
+      throw UnsupportedError('This app cannot connect an account');
     }
-    await signUp(email);
+    await connect(context);
   }
 
   // ---- what an open chat screen asks for ----

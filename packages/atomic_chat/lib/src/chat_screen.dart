@@ -2092,8 +2092,28 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _connectAccount() async {
+    setState(() => _signUpError = null);
+    try {
+      await widget.api.connectAccount(context);
+      if (mounted) _lookUpAi();
+    } catch (e) {
+      if (mounted) setState(() => _signUpError = HostedAi.errorMessage(e));
+    }
+  }
+
   /// Under the notice: Create an account, then the email, then the wait.
   Widget _signUpStep(AppColors c) {
+    if (widget.api.canConnectAccount) {
+      return Column(children: [
+        FilledButton(
+          key: const Key('connect-account'),
+          onPressed: _connectAccount,
+          child: const Text('Sign in or create an account'),
+        ),
+        if (_signUpError != null) ErrorText(_signUpError!),
+      ]);
+    }
     if (!widget.api.canSignUpForAi) return const SizedBox.shrink();
     if (_signUpSent) {
       return Column(children: [

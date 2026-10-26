@@ -3,8 +3,11 @@ import 'package:atomic_store_flutter/atomic_store_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:atomic_flutter/atomic_flutter.dart' show AtomicAccountClient;
+
 import 'src/agent_account.dart';
 import 'src/repository.dart';
+import 'ui/account_link_dialog.dart';
 import 'ui/building_chat_page.dart';
 import 'ui/homes_page.dart';
 
@@ -22,7 +25,12 @@ Future<void> main() async {
   runApp(BuildingsApp(
     BuildingRepository(node.store),
     actions: [AtomicAccountButton(node: node)],
-    chat: BuildingChat(ai: account.hostedAi, signUp: account.signUp),
+    chat: BuildingChat(
+      ai: account.hostedAi,
+      connect: (context) => AccountLinkDialog.show(context,
+          client: AtomicAccountClient(account.portal),
+          save: account.sessions.save),
+    ),
   ));
 }
 

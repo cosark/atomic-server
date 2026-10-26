@@ -10,18 +10,18 @@ import '../src/room_scanner.dart';
 import '../src/roomplan.dart';
 import '../src/terms.g.dart';
 
-/// What the chat needs from the app: the linked account's AI, how to offer to
-/// create the account, and where photos and files come from.
+/// What the chat needs from the app: the linked account's AI, how to sign in
+/// to it, and where photos and files come from.
 class BuildingChat {
   const BuildingChat({
     required this.ai,
-    this.signUp,
+    this.connect,
     this.picker = const DeviceAttachmentPicker(),
   });
 
   /// The AI of the linked account; null result when none is linked.
   final Future<HostedAi?> Function() ai;
-  final Future<void> Function(String email)? signUp;
+  final Future<void> Function(BuildContext context)? connect;
   final AttachmentPicker picker;
 }
 
@@ -49,7 +49,7 @@ class _BuildingChatPageState extends State<BuildingChatPage> {
   late final BuildingTools _tools = BuildingTools(widget.repo, widget.home);
   late final BuildingAssistantApi _api = BuildingAssistantApi(
       widget.repo, widget.home, _tools,
-      account: widget.chat.ai, signUp: widget.chat.signUp);
+      account: widget.chat.ai, connect: widget.chat.connect);
   late final Future<String> _chat = _api.ensureChat();
   bool _canScan = false;
 
