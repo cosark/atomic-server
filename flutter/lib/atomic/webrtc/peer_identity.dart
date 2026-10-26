@@ -29,6 +29,20 @@ String randomPeerToken([Random? random]) {
 String canonicalDrive(String drive) =>
     drive.startsWith('did:ad:') ? 'atomic:${drive.substring(7)}' : drive;
 
+/// Whether [drive] can meet its peers: only `atomic:` / `did:ad:` drives, as
+/// on the web (`isAtomicIdentifier`). A server drive (`https://…`) syncs
+/// through its server, and the peer session refuses it anyway.
+bool isPeerDrive(String drive) {
+  final d = canonicalDrive(drive);
+  if (!d.startsWith('atomic:') || d.contains('#') || d.contains('?')) {
+    return false;
+  }
+  final body = d.substring(7);
+  return body.isNotEmpty &&
+      !['agent:', 'commit:', 'blob:', 'prop:', 'node:']
+          .any((kind) => body.startsWith(kind));
+}
+
 /// The rendezvous room of a drive: `sha256("atomic-browser-drive-v1:" +
 /// drive)`, hex. Every device of a drive's members lands in the same room, and
 /// the signalling service sees a hash, not the drive. Discovery is not

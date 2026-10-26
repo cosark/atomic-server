@@ -51,6 +51,19 @@ void main() {
         automaticPeerRoom('atomic:private1'));
   });
 
+  test('only atomic drives get a room, not server drives', () async {
+    drives = [
+      'https://atomicdata.dev/drive/wd22yxmxw4j',
+      'http://localhost:9883/drive/x',
+      'atomic:private1',
+    ];
+    await service.start();
+    await eventually(
+        () => sockets.isNotEmpty && sockets.single.sent.isNotEmpty);
+    expect(service.drives.toList(), ['atomic:private1']);
+    expect(sockets, hasLength(1));
+  });
+
   test('the room is the same for either spelling of the drive', () async {
     drives = ['did:ad:private1'];
     await service.start();

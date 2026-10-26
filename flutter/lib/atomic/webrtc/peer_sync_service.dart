@@ -73,7 +73,11 @@ class WebRtcPeerSyncService {
     if (_stopped) return;
     final List<String> drives;
     try {
-      drives = (await listDrives()).map(canonicalDrive).toSet().toList();
+      drives = (await listDrives())
+          .where(isPeerDrive)
+          .map(canonicalDrive)
+          .toSet()
+          .toList();
     } catch (_) {
       return;
     }
