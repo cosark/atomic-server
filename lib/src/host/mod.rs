@@ -24,6 +24,7 @@
 //! - [`move_resource`]: drag and drop in the drive tree: re-parent and reorder.
 //! - [`notifications`]: the Inbox of the private drive: list, mark read.
 //! - [`own_profile`]: this device's agent's profile: read, edit.
+//! - [`presence`]: who is where in a drive: announce this device, list the others.
 //! - [`peer_search`]: looking for this agent's other devices, with retries and
 //!   a status a screen can show.
 //! - [`store_stats`]: how much data this device holds (disk, per drive).
@@ -57,6 +58,7 @@ pub mod move_resource;
 pub mod notifications;
 pub mod own_profile;
 pub mod peer_search;
+pub mod presence;
 pub mod profiles;
 pub mod recents;
 pub mod rows;

@@ -32,6 +32,7 @@
 use super::browser_peer::BrowserPeerSession;
 use super::{engine, protocol, ws_apply};
 use crate::agents::Agent;
+use crate::db::EphemeralEvent;
 use crate::errors::AtomicResult;
 use crate::{Db, DbEvent, Storelike};
 use tokio::sync::{broadcast, Mutex, Notify};
@@ -78,6 +79,9 @@ pub struct WebRtcPeerLink {
     source: String,
     state: Mutex<LinkState>,
     events: Mutex<broadcast::Receiver<DbEvent>>,
+    /// Presence announced on this node (by the app, or relayed from the server
+    /// or another kind of link), waiting to go out to this peer.
+    ephemeral: Mutex<broadcast::Receiver<EphemeralEvent>>,
     /// Wakes a pending [`Self::next_live_frames`] when the host closes the link.
     closed: Notify,
 }
@@ -107,6 +111,7 @@ impl WebRtcPeerLink {
         let challenge = format!("{binding}:{}", protocol::new_challenge_nonce());
         let session = BrowserPeerSession::new(drive.clone(), expected_peer, challenge.clone())?;
         let events = Mutex::new(db.subscribe_events());
+        let ephemeral = Mutex::new(db.subscribe_ephemeral());
         let source = format!("webrtc:{}", &challenge[64..80]);
         Ok((
             Self {
@@ -122,6 +127,7 @@ impl WebRtcPeerLink {
                     authenticated: false,
                 }),
                 events,
+                ephemeral,
                 closed: Notify::new(),
             },
             protocol::encode_challenge(&challenge),
@@ -186,6 +192,21 @@ impl WebRtcPeerLink {
                 }
                 out.frames = result.frames;
                 out.changed = result.changed;
+                // The frame was admitted by the session (right agent, right
+                // drive, readable). Hand it to everything on this node that
+                // listens, the presence hub first, and keep returning it for
+                // callers that route it themselves.
+                if let Some(frame) = &result.ephemeral {
+                    if let Some(decoded) = frame.get(1..).and_then(protocol::decode_ephemeral) {
+                        self.db.publish_ephemeral(EphemeralEvent {
+                            kind: decoded.kind,
+                            drive: decoded.drive,
+                            agent: decoded.agent,
+                            payload: decoded.payload,
+                            from_peer: self.source.clone(),
+                        });
+                    }
+                }
                 out.ephemeral = result.ephemeral;
             }
         }
@@ -240,30 +261,65 @@ impl WebRtcPeerLink {
         )))
     }
 
-    /// Waits for a local write the peer may read and returns the frames that
-    /// carry it. Writes that arrived from a peer (this link or another) are
-    /// not forwarded: the next reconcile carries them, as in the browser.
-    /// Errors only when the store's event channel is gone.
+    /// Waits for a local write, or presence announced on this node, that the
+    /// peer may read and returns the frames that carry it. Writes that arrived
+    /// from a peer (this link or another) are not forwarded: the next reconcile
+    /// carries them, as in the browser. Presence has no reconcile, so it is
+    /// relayed instead, except back to where it came from and except between
+    /// two WebRTC links (three nodes in a ring would otherwise pass one update
+    /// around forever). Errors only when the store's event channel is gone.
     pub async fn next_live_frames(&self) -> AtomicResult<Vec<Vec<u8>>> {
         let mut events = self.events.lock().await;
+        let mut ephemeral = self.ephemeral.lock().await;
         loop {
-            let received = tokio::select! {
+            let frames = tokio::select! {
                 _ = self.closed.notified() => return Err("Peer link closed".into()),
-                received = events.recv() => received,
+                received = events.recv() => match received {
+                    // Missed events are the reconcile's job.
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => {
+                        return Err("Store event channel closed".into())
+                    }
+                    Ok(event) => self.frames_for(&event).await,
+                },
+                received = ephemeral.recv() => match received {
+                    // A stale cursor is not worth catching up on; the
+                    // heartbeat re-sends presence within seconds.
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => {
+                        return Err("Store event channel closed".into())
+                    }
+                    Ok(event) => self.presence_frames_for(&event).await,
+                },
             };
-            let event = match received {
-                Ok(event) => event,
-                // Missed events are the reconcile's job.
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => {
-                    return Err("Store event channel closed".into())
-                }
-            };
-            let frames = self.frames_for(&event).await;
             if !frames.is_empty() {
                 return Ok(frames);
             }
         }
+    }
+
+    async fn presence_frames_for(&self, event: &EphemeralEvent) -> Vec<Vec<u8>> {
+        if event.kind != protocol::ephemeral_kind::PRESENCE
+            || event.from_peer == self.source
+            || event.from_peer.starts_with("webrtc:")
+            // The peer refuses a frame whose agent is not the one that
+            // authenticated this link, and drops the link for it. Other
+            // agents' presence reaches it through its own server connection.
+            || event.agent != self.agent.subject
+            || crate::identifiers::canonicalize_scheme(&event.drive) != self.drive
+        {
+            return vec![];
+        }
+        let state = self.state.lock().await;
+        if !state.ready() || !state.session.can_send(&self.db, &self.drive).await {
+            return vec![];
+        }
+        vec![protocol::encode_ephemeral(
+            event.kind,
+            &event.drive,
+            &event.agent,
+            &event.payload,
+        )]
     }
 
     async fn frames_for(&self, event: &DbEvent) -> Vec<Vec<u8>> {
@@ -485,6 +541,84 @@ mod tests {
             renamed.get(crate::urls::NAME).unwrap().to_string(),
             "Renamed live"
         );
+    }
+
+    /// Two ready links of one agent over one drive.
+    async fn ready_pair() -> (
+        std::sync::Arc<WebRtcPeerLink>,
+        WebRtcPeerLink,
+        Db,
+        Db,
+        Agent,
+    ) {
+        let (db_a, agent, drive) = node(None).await;
+        let (db_b, _, _) = node(Some(&agent)).await;
+        let binding = "ab".repeat(32);
+        let (a, challenge_a) = WebRtcPeerLink::new(db_a.clone(), &drive, &binding, None).unwrap();
+        let (b, challenge_b) = WebRtcPeerLink::new(
+            db_b.clone(),
+            &drive,
+            &binding,
+            Some(agent.subject.to_string()),
+        )
+        .unwrap();
+        settle(&a, &b, (challenge_a, challenge_b)).await;
+        (std::sync::Arc::new(a), b, db_a, db_b, agent)
+    }
+
+    fn presence_event(link: &WebRtcPeerLink, agent: &Agent, from_peer: &str) -> EphemeralEvent {
+        EphemeralEvent {
+            kind: protocol::ephemeral_kind::PRESENCE,
+            drive: link.drive().to_string(),
+            agent: agent.subject.to_string(),
+            payload: vec![1, 2, 3],
+            from_peer: from_peer.to_string(),
+        }
+    }
+
+    /// Presence announced on this node goes to the peer as an EPHEMERAL frame
+    /// the peer accepts and publishes on its own node. Presence that came from
+    /// this link, or from another WebRTC link, is not sent on.
+    #[tokio::test]
+    async fn local_presence_is_sent_and_published_by_the_peer() {
+        let (a, b, db_a, db_b, agent) = ready_pair().await;
+        let mut seen_by_b = db_b.subscribe_ephemeral();
+        let waiting = tokio::spawn({
+            let a = a.clone();
+            async move { a.next_live_frames().await }
+        });
+        tokio::task::yield_now().await;
+        // Neither of these is for the peer; the third is.
+        db_a.publish_ephemeral(presence_event(&a, &agent, &a.source));
+        db_a.publish_ephemeral(presence_event(&a, &agent, "webrtc:other"));
+        db_a.publish_ephemeral(presence_event(&a, &agent, "local"));
+        let frames = tokio::time::timeout(std::time::Duration::from_secs(5), waiting)
+            .await
+            .expect("a frame arrives")
+            .unwrap()
+            .unwrap();
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0][0], protocol::tag::EPHEMERAL);
+        let out = b.handle(&frames[0]).await.unwrap();
+        assert_eq!(out.ephemeral.as_deref(), Some(frames[0].as_slice()));
+        let published = seen_by_b.try_recv().unwrap();
+        assert_eq!(published.kind, protocol::ephemeral_kind::PRESENCE);
+        assert_eq!(published.payload, vec![1, 2, 3]);
+        assert_eq!(published.from_peer, b.source);
+    }
+
+    #[tokio::test]
+    async fn presence_of_another_agent_is_not_sent() {
+        let (a, _b, db_a, _, _) = ready_pair().await;
+        let waiting = tokio::spawn({
+            let a = a.clone();
+            async move { a.next_live_frames().await }
+        });
+        tokio::task::yield_now().await;
+        let other = Agent::new(Some("Other")).unwrap();
+        db_a.publish_ephemeral(presence_event(&a, &other, "ws"));
+        let result = tokio::time::timeout(std::time::Duration::from_millis(300), waiting).await;
+        assert!(result.is_err(), "nothing to send");
     }
 
     #[tokio::test]
