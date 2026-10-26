@@ -609,6 +609,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 first: first,
                 colors: c,
                 row: _chatRow,
+                onNew: () => _openChat(null),
               ));
 
   void _openPage(HomeSection id, WidgetBuilder page) {
@@ -1921,12 +1922,16 @@ class _ChatsPage extends StatefulWidget {
   final AppColors colors;
   final Widget Function(ChatSummary) row;
 
+  /// Starts a new chat (the bar's + New).
+  final VoidCallback onNew;
+
   const _ChatsPage({
     required this.title,
     required this.api,
     required this.first,
     required this.colors,
     required this.row,
+    required this.onNew,
   });
 
   @override
@@ -1996,7 +2001,17 @@ class _ChatsPageState extends State<_ChatsPage> {
     final count = _entries.length + (_done ? 0 : 1);
     return Scaffold(
       backgroundColor: c.bgBody,
-      appBar: AppTopBar(title: widget.title),
+      appBar: AppTopBar(title: widget.title, actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: TextButton.icon(
+            key: const Key('chats-new'),
+            onPressed: widget.onNew,
+            icon: const Icon(Icons.add),
+            label: const Text('New'),
+          ),
+        ),
+      ]),
       body: SafeArea(
         top: false,
         bottom: false,
