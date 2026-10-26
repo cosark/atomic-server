@@ -4844,31 +4844,62 @@ export class Store {
 
     const ws = this.getWebSocketForSubject(fetchSubject);
 
+    let useHttp = true;
+
     if (
+      (!opts.method || opts.method === 'GET') &&
       !opts.fromProxy &&
       !opts.noWebSocket &&
       supportsWebSockets() &&
       ws?.readyState === WebSocket.OPEN
     ) {
-      try {
-        await ws.fetch(fetchSubject);
-      } catch (error) {
-        // A hook may already have installed a loading placeholder. Settle it
-        // so concurrent getResource callers receive the failure, not a timeout.
-        const pending = this.getResolved(subject);
-
-        if (pending && !this.hasRenderableContent(pending)) {
-          this.failResource(
-            subject,
-            error instanceof Error ? error : new Error(String(error)),
+      // OPEN is not proof that the peer can answer: a blocked sync worker or
+      // a half-open connection used to hold every table query for ten seconds.
+      // Give a healthy local socket one round trip, then use the existing
+      // authenticated HTTP read path. Remote nodes get a normal WAN budget.
+      const local = ['localhost', '127.0.0.1', '[::1]'].includes(
+        new URL(
+          /^https?:/.test(fetchSubject) ? fetchSubject : this.getServerUrl(),
+        ).hostname,
+      );
+      const controller = new AbortController();
+      let expired = false;
+      const timer = setTimeout(
+        () => {
+          expired = true;
+          controller.abort(
+            new RequestCancelledError('WebSocket read yielded to HTTP'),
           );
+        },
+        local ? 50 : 1000,
+      );
 
-          return pending as Resource<C>;
+      try {
+        await ws.fetch(fetchSubject, { signal: controller.signal });
+        useHttp = false;
+      } catch (error) {
+        // Only our own deadline enables fallback. An explicit refusal (401,
+        // 404, etc.) is an answer and must retain its original meaning.
+        if (!expired) {
+          const pending = this.getResolved(subject);
+
+          if (pending && !this.hasRenderableContent(pending)) {
+            this.failResource(
+              subject,
+              error instanceof Error ? error : new Error(String(error)),
+            );
+
+            return pending as Resource<C>;
+          }
+
+          throw error;
         }
-
-        throw error;
+      } finally {
+        clearTimeout(timer);
       }
-    } else {
+    }
+
+    if (useHttp) {
       const signInfo = this.agent
         ? { agent: this.agent, serverURL: this.getServerUrl() }
         : undefined;
