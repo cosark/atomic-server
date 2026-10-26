@@ -1,6 +1,7 @@
 import Flutter
 import RoomPlan
 import UIKit
+import simd
 
 /// Apple RoomPlan scanning for the Dart `PlatformRoomScanner`.
 /// Channel `io.ontola.atomic_buildings/roomscan`:
@@ -165,7 +166,14 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
     _ id: UUID, _ category: String, _ t: simd_float4x4, _ dims: simd_float3,
     _ confidence: CapturedRoom.Confidence
   ) -> [String: Any] {
-    let c = [t.columns.0, t.columns.1, t.columns.2, t.columns.3]  // column-major
+    // Column-major, as the contract in lib/src/roomplan.dart says.
+    var matrix: [Double] = []
+    for column in [t.columns.0, t.columns.1, t.columns.2, t.columns.3] {
+      matrix.append(Double(column.x))
+      matrix.append(Double(column.y))
+      matrix.append(Double(column.z))
+      matrix.append(Double(column.w))
+    }
     let level: String
     switch confidence {
     case .high: level = "high"
@@ -175,8 +183,8 @@ final class RoomScanViewController: UIViewController, RoomCaptureSessionDelegate
     return [
       "category": category,
       "id": id.uuidString,
-      "transform": c.flatMap { [Double($0.x), Double($0.y), Double($0.z), Double($0.w)] },
-      "dimensions": [Double(dims.x), Double(dims.y), Double(dims.z)],
+      "transform": matrix,
+      "dimensions": [Double(dims.x), Double(dims.y), Double(dims.z)] as [Double],
       "confidence": level,
     ]
   }
