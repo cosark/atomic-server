@@ -30,6 +30,7 @@ import 'package:atomic_flutter/atomic_flutter.dart'
 import 'theme.dart';
 import 'atomic/atomic_client.dart';
 import 'atomic/get_started.dart';
+import 'atomic/peer_sync_host.dart';
 import 'atomic/session.dart';
 import 'atomic/store_location.dart';
 import 'atomic/sync_notice_policy.dart';
@@ -206,9 +207,14 @@ class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
         state == AppLifecycleState.detached) {
       AtomicClient.setAppForeground(false);
     }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(PeerSyncHost.instance.stop());
+    }
     if (state == AppLifecycleState.resumed && _loggedIn) {
       _resumeFromSession();
       _startBackgroundSync();
+      unawaited(PeerSyncHost.instance.start());
     }
   }
 
@@ -267,6 +273,18 @@ class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
     unawaited(perfSeedIfAsked());
     _startEventListener();
     _startBackgroundSync();
+    unawaited(_restartPeerSync());
+  }
+
+  /// WebRTC rooms of the drives, where the browser of the same person meets
+  /// this app. Starts when signed in; a new account gets rooms of its own.
+  Future<void> _restartPeerSync() async {
+    try {
+      await PeerSyncHost.instance.stop();
+      await PeerSyncHost.instance.start();
+    } catch (e) {
+      debugPrint('Starting peer sync failed: $e');
+    }
   }
 
   /// Background sync retries on its own and is nearly always silent: a cold
@@ -350,10 +368,12 @@ class _AtomicAppState extends State<AtomicApp> with WidgetsBindingObserver {
   void _signedInAsOther() {
     _syncFailures = 0;
     _startBackgroundSync();
+    unawaited(_restartPeerSync());
     setState(() => _accountSwitches++);
   }
 
   void _signedOut() {
+    unawaited(PeerSyncHost.instance.stop());
     _syncRetry?.cancel();
     _syncFailures = 0;
     _syncNotice.reset();
