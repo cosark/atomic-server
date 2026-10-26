@@ -3220,6 +3220,7 @@ msgstr "Buscar"
 
 #: src/chunks/Templates/prepareTemplateDrive.ts
 #: src/chunks/Templates/prepareTemplateDrive.ts
+#: src/helpers/connectableDrives.ts
 #: src/helpers/managed/cloudSync.ts
 #: src/helpers/managed/prepareDriveSharing.ts
 #: src/helpers/managed/reconcile.ts
@@ -13219,6 +13220,7 @@ msgstr ""
 
 #: src/routes/SyncRoute.tsx
 msgid "Not hosted yet"
+msgstr ""
 
 #: src/actions/resourceActions.tsx
 msgid "Move..."
@@ -13251,4 +13253,22 @@ msgstr ""
 
 #: src/helpers/moveResource.ts
 msgid "Moving to another drive is not supported yet."
+msgstr ""
+
+#: src/components/ConnectDrivePicker.tsx
+msgid "Only on your devices"
+msgstr ""
+
+#. 0: titles; 1: app; 2: node
+#: src/helpers/connectableDrives.ts
+msgid "{0} only lives on your devices, so {1} cannot reach it through {2}. Deselect it, or turn on Cloud Server for that drive."
+msgstr ""
+
+#. 0: app; 1: titles; 2: text(other[0].error)
+#: src/helpers/connectableDrives.ts
+msgid "Could not give {0} access to {1}: {2}"
+msgstr ""
+
+#: src/routes/AuthorizeMcpRoute.tsx
+msgid "A drive"
 msgstr ""
