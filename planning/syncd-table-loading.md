@@ -29,3 +29,9 @@ Runtime data and benchmarks use private files outside Git. All committed tests a
 ## Validation
 
 All library unit tests: 1742 passed, one explicitly skipped; TypeScript checks passed. Targeted frame tests verify late cancelled responses are ignored while pushes still hydrate. The table already queries 30 rows per page. Browser paint acceptance remains pending: a matching native+WASM build is needed; laptop free disk was about 2.2 GiB at inspection.
+
+## External blockers
+
+Draft PR: https://github.com/ontola/atomic-server/pull/2368. Full CI was dispatched but queues for Mancave; the repository runner API reported zero available runners. A matching fresh frontend/native build was attempted locally. The disk guard stopped the frontend build when free space fell below 500 MiB; its failed WASM target cache was removed, and the running pilot was left unchanged. Browser paint validation and local rollout remain open. A fresh client using the patched library loaded 30 real local rows in 284 ms; this is not a browser paint measurement or the 100 ms target.
+
+The separate SyncD projection now uses full pinned Keep and GitHub contracts. Fresh source reads require renewed device authorization; the prior approval code expired. Existing source revisions and live Atomic tables remain intact.
