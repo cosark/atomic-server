@@ -17,6 +17,7 @@ import 'package:flutter/services.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'covered_insets_freeze.dart';
+import 'follow_controller.dart';
 import 'app_bottom_bar.dart';
 import 'models.dart';
 import 'assistant_api.dart';
@@ -239,6 +240,9 @@ class ShellController extends ChangeNotifier {
 
   /// The drive search looks in; the home updates it.
   final ValueNotifier<String> drive;
+
+  /// Whom the app follows (see [FollowController]).
+  final follow = FollowController();
 
   /// Opens the user's page; the home sets it (it handles sign-out). Without
   /// one the bar opens [profile].

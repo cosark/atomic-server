@@ -243,4 +243,32 @@ abstract class AssistantApi {
   /// Gives [subject] a new name (a chat room shown natively, which has no web
   /// page to edit its title on).
   Future<void> renameResource(String subject, String name);
+
+  /// The other sessions announcing themselves in [drive] right now (the web's
+  /// presence channel), this device's own session left out. Empty by default:
+  /// a host without presence shows nobody.
+  Future<List<PresenceItem>> presence(String drive) async => const [];
+
+  /// Fires when [presence] may have changed. Null: the host cannot tell, the
+  /// screens read it again every few seconds.
+  Listenable? get presenceChanges => null;
+
+  /// Tells [drive] what this device is looking at: [resource] (null: nothing
+  /// that others should see) and, in follow mode, the agent it [following].
+  /// The host keeps the entry alive while the app is in the foreground.
+  Future<void> announcePresence(String drive,
+      {String? resource, String? following}) async {}
+
+  /// Takes this device's entry off [drive]'s presence channel (the app went
+  /// to the background).
+  Future<void> clearPresence(String drive) async {}
+
+  /// The name, picture and emoji of another agent, for presence avatars; null
+  /// when this device does not know them (the avatar then shows a person).
+  Future<ProfileIdentity?> identityOf(String agent) async => null;
+
+  /// The subject of the conversation between this device's agent and [agent]
+  /// (the "Message" button), created when there is none; null when the host
+  /// cannot start one.
+  Future<String?> conversationWith(String agent) async => null;
 }

@@ -48,6 +48,8 @@ export 'src/drive_home.dart';
 // Resources: native views, else the embedded web renderer.
 export 'src/native_views.dart';
 export 'src/resource_view.dart';
+export 'src/presence_facepile.dart';
+export 'src/follow_controller.dart';
 export 'src/warm_resource_web_view.dart';
 export 'src/resource_web_view.dart';
 export 'src/embed_server.dart';

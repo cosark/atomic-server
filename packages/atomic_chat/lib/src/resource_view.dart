@@ -12,10 +12,13 @@ import 'app_shell.dart';
 import 'app_sidebar_icons.dart';
 import 'app_theme.dart';
 import 'assistant_api.dart';
+import 'conversation_screen.dart';
 import 'embed_server.dart';
+import 'follow_controller.dart';
 import 'models.dart';
 import 'native_views.dart';
 import 'page_swipe.dart';
+import 'presence_facepile.dart';
 import 'resource_chrome.dart';
 import 'warm_resource_web_view.dart';
 
@@ -128,6 +131,21 @@ class _ResourceViewState extends State<ResourceView>
   /// The web page's id for this showing of the menu.
   final _menuId = '${DateTime.now().microsecondsSinceEpoch}';
   bool _wasCurrent = true;
+
+  /// The page that last announced itself on the presence channel. A page
+  /// only takes its announcement back when it is still the one standing: the
+  /// next page announces before this one is gone.
+  static _ResourceViewState? _announcer;
+
+  PresenceWatch? _watch;
+  late final FollowController _follow;
+
+  /// The avatar sheet is open: it covers this page without leaving it.
+  bool _sheetOpen = false;
+
+  /// The page is being replaced by the one a followed agent opened; that is
+  /// not leaving by hand, so following goes on.
+  bool _replacing = false;
   int _flushes = 0;
   final _flushed = <int, Completer<void>>{};
 
@@ -149,6 +167,8 @@ class _ResourceViewState extends State<ResourceView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _follow = ShellScope.maybeOf(context)?.follow ?? FollowController();
+    _follow.addListener(_followChanged);
     AppSidebarIcons.show.addListener(_tellSidebarIcons);
     _changes = widget.api.resourceChanges?.listen(_tellChanged);
     widget.api.storeChanges?.addListener(_storeChanged);
@@ -162,7 +182,10 @@ class _ResourceViewState extends State<ResourceView>
     _start();
     // The route is known once this is in the tree.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _registerMenu();
+      if (mounted) {
+        _registerMenu();
+        _showPresence();
+      }
     });
   }
 
@@ -423,9 +446,128 @@ class _ResourceViewState extends State<ResourceView>
     _tellColorScheme();
     // Another page was opened over this one (search, a linked resource):
     // this one may never be shown again, so its edits go now.
+    if (_sheetOpen) return;
     final current = ModalRoute.of(context)?.isCurrent ?? true;
     if (_wasCurrent && !current && !_leaving) unawaited(_flush());
+    if (_wasCurrent && !current) {
+      _hidePresence();
+      // Opening something else by hand ends following, as on the web.
+      if (!_replacing) _follow.stop();
+    } else if (!_wasCurrent && current) {
+      _showPresence();
+    }
     _wasCurrent = current;
+  }
+
+  /// Whether this is a resource page others can see us on (not the resource's
+  /// menu, not a page of the app's own such as settings).
+  bool get _announces =>
+      widget.path == null && !_menuOnly && widget.subject.isNotEmpty;
+
+  /// This page is on top: tell the drive which resource it is, and watch who
+  /// else has it open.
+  void _showPresence() {
+    if (!_announces || _leaving || !mounted) return;
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    _announcer = this;
+    final watch = _watch ??= PresenceWatch(widget.api, widget.drive)
+      ..addListener(_leaderMoved);
+    watch.start();
+    _announce();
+    setState(() {});
+  }
+
+  void _announce() {
+    widget.api
+        .announcePresence(widget.drive,
+            resource: widget.subject, following: _follow.agent)
+        .catchError((Object e) => debugPrint('[presence] not announced: $e'));
+  }
+
+  /// This page is no longer shown: the entry keeps who we follow but no
+  /// resource. Only when no other page took the announcement over meanwhile.
+  void _hidePresence({bool background = false}) {
+    _watch?.stop();
+    if (_announcer != this) return;
+    _announcer = null;
+    final drive = widget.drive;
+    (background
+            ? widget.api.clearPresence(drive)
+            : widget.api.announcePresence(drive, following: _follow.agent))
+        .catchError((Object e) => debugPrint('[presence] not cleared: $e'));
+  }
+
+  /// Following started or stopped: the entry says so.
+  void _followChanged() {
+    if (_announcer == this) _announce();
+    if (mounted) setState(() {});
+  }
+
+  /// The watched presence changed: while following, go where the leader is.
+  void _leaderMoved() {
+    final leader = _follow.agent;
+    if (leader == null || _announcer != this || _replacing) return;
+    final items = _watch!.items.where((i) => i.agent == leader).toList();
+    if (items.isEmpty) {
+      // They left the drive.
+      _follow.stop();
+      return;
+    }
+    final target =
+        items.reduce((a, b) => b.updatedAt > a.updatedAt ? b : a).resource;
+    if (target == null || target == widget.subject) return;
+    _replacing = true;
+    widget.api.noteOpened(widget.drive, target);
+    final split = ShellScope.maybeOf(context)?.split ?? false;
+    // Replace, not stack: back still leaves following.
+    unawaited(Navigator.of(context).pushReplacement(SlideBackRoute<void>(
+      instant: split,
+      builder: (_) => openResourceView(
+          api: widget.api, drive: widget.drive, subject: target),
+    )));
+  }
+
+  /// A tap on an avatar of the facepile.
+  Future<void> _avatarTapped(PresenceItem who) async {
+    final watch = _watch!;
+    final identity = watch.identity(who.agent);
+    _sheetOpen = true;
+    PresenceChoice? choice;
+    try {
+      choice = await showPresenceSheet(context,
+          who: who,
+          identity: identity,
+          following: _follow.isFollowing(who.agent));
+    } finally {
+      _sheetOpen = false;
+    }
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case PresenceChoice.follow:
+        _follow.follow(who.agent);
+        // Go to where they are right away.
+        _leaderMoved();
+      case PresenceChoice.stopFollowing:
+        _follow.stop();
+      case PresenceChoice.profile:
+        unawaited(Navigator.of(context).push(SlideBackRoute<void>(
+          builder: (_) => openResourceView(
+              api: widget.api,
+              drive: widget.drive,
+              subject: who.agent,
+              title: identity?.name?.trim() ?? ''),
+        )));
+      case PresenceChoice.message:
+        final conversation = await widget.api.conversationWith(who.agent);
+        if (!mounted || conversation == null) return;
+        unawaited(Navigator.of(context).push(SlideBackRoute<void>(
+          builder: (_) => ConversationScreen(
+              api: widget.api,
+              drive: widget.drive,
+              subject: conversation,
+              title: identity?.name?.trim() ?? ''),
+        )));
+    }
   }
 
   @override
@@ -434,6 +576,9 @@ class _ResourceViewState extends State<ResourceView>
     if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
       unawaited(_flush());
+      _hidePresence(background: true);
+    } else if (state == AppLifecycleState.resumed && _wasCurrent) {
+      _showPresence();
     }
   }
 
@@ -459,6 +604,12 @@ class _ResourceViewState extends State<ResourceView>
     unawaited(_changes?.cancel());
     widget.api.storeChanges?.removeListener(_storeChanged);
     WidgetsBinding.instance.removeObserver(this);
+    _hidePresence();
+    _watch?.dispose();
+    _follow.removeListener(_followChanged);
+    // Left by hand (a swipe back, the system back), not replaced by follow.
+    // (After the tree is torn down: other pages listen to it.)
+    if (!_replacing) scheduleMicrotask(_follow.stop);
     AppSidebarIcons.show.removeListener(_tellSidebarIcons);
     final route = _route;
     if (route != null) _shell?.unregisterMenu(route);
@@ -534,7 +685,10 @@ class _ResourceViewState extends State<ResourceView>
       } else if (_menuOnly) {
         setState(() => _menuOnly = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _registerMenu();
+          if (mounted) {
+            _registerMenu();
+            _showPresence();
+          }
         });
       }
       return;
@@ -788,6 +942,26 @@ class _ResourceViewState extends State<ResourceView>
                         top: 0,
                         right: kEmbedNavBarTrailingInset,
                         child: const ResourceMoreButton(),
+                      ),
+                    // Who else has this resource open, in the page's top right
+                    // corner (before the more button where the pane has it).
+                    if (_watch != null && _announces)
+                      Positioned(
+                        top: 0,
+                        right: kEmbedNavBarTrailingInset +
+                            (ShellScope.maybeOf(context) != null &&
+                                    ShellScope.layoutOf(context) ==
+                                        ShellLayout.split
+                                ? kEmbedNavBarHeight
+                                : 8),
+                        height: kEmbedNavBarHeight,
+                        child: Center(
+                          child: PresenceFacepile(
+                              watch: _watch!,
+                              follow: _follow,
+                              subject: widget.subject,
+                              onTap: _avatarTapped),
+                        ),
                       ),
                     // The swipe back over the web view, which takes the touches.
                     Positioned.fill(

@@ -589,3 +589,51 @@ class ProfileIdentity {
   int get hashCode =>
       Object.hash(name, imageUrl, imageBytes?.length, emoji, pendingImage);
 }
+
+/// One session of someone else announcing itself on a drive's presence
+/// channel, as the web app's `PresenceEntry` (`browser/lib/src/presence.ts`)
+/// plus the id of the session. One agent can have several (a browser tab, the
+/// app).
+class PresenceItem {
+  /// The browsing session (a tab, the app); unique per agent and device.
+  final String sessionId;
+
+  /// The agent behind the session.
+  final String agent;
+
+  /// The resource the session is viewing; null when it shows none.
+  final String? resource;
+
+  /// The agent this session is following, if it is in follow mode.
+  final String? following;
+
+  /// Whether others may follow this session's agent. The web treats an
+  /// absent value as allowed, so does this.
+  final bool allowFollow;
+
+  /// When the session last wrote its entry (ms since epoch); a lingering
+  /// older session of the same agent loses against the freshest.
+  final int updatedAt;
+
+  const PresenceItem({
+    required this.sessionId,
+    required this.agent,
+    this.resource,
+    this.following,
+    this.allowFollow = true,
+    this.updatedAt = 0,
+  });
+
+  factory PresenceItem.fromJson(Map<String, dynamic> json) {
+    String? text(Object? v) => v is String && v.isNotEmpty ? v : null;
+    return PresenceItem(
+      sessionId: '${json['sessionId'] ?? ''}',
+      agent: '${json['agent'] ?? ''}',
+      resource: text(json['resource']),
+      following: text(json['following']),
+      allowFollow: json['allowFollow'] != false,
+      updatedAt:
+          json['updatedAt'] is num ? (json['updatedAt'] as num).toInt() : 0,
+    );
+  }
+}
