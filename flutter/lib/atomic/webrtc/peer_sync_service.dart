@@ -14,6 +14,8 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'flutter_webrtc_connection.dart';
 import 'peer_connection.dart';
 import 'peer_identity.dart';
@@ -78,19 +80,29 @@ class WebRtcPeerSyncService {
           .map(canonicalDrive)
           .toSet()
           .toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[webrtc] could not list the drives: $e');
       return;
     }
+    if (_meshes.isEmpty) debugPrint('[webrtc] drives for rooms: $drives');
     for (final drive in drives) {
       if (_stopped) return;
       if (_meshes.containsKey(drive)) continue;
       try {
-        if (await usesCloudServer(drive)) continue;
+        if (await usesCloudServer(drive)) {
+          debugPrint('[webrtc] $drive: no room, a Cloud Server carries it');
+          continue;
+        }
         final url = peerSignalingUrl(
           driveSignalingUrl: await driveSignalingUrl(drive),
           portalUrl: portalUrl,
         );
-        if (url == null || _stopped) continue;
+        if (_stopped) continue;
+        if (url == null) {
+          debugPrint('[webrtc] $drive: no room, no signalling service');
+          continue;
+        }
+        debugPrint('[webrtc] $drive: joining its room at $url');
         _meshes[drive] = WebRtcPeerMesh(
           drive: drive,
           signalingUrl: url,
@@ -102,8 +114,9 @@ class WebRtcPeerSyncService {
             onStatus?.call(drive, status);
           },
         )..start();
-      } catch (_) {
+      } catch (e) {
         // Retried at the next scan.
+        debugPrint('[webrtc] $drive: no room yet: $e');
       }
     }
     // A drive that left the device, or went to a Cloud Server, leaves its room.
