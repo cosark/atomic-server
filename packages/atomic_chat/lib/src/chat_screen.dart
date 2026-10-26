@@ -2258,7 +2258,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_noAi) {
       // An empty chat says it in the middle (see [_noAiState]).
       if (_messages.isEmpty) return const SizedBox.shrink();
-      return SafeArea(child: hint(_error ?? '$_noAiTitle.'));
+      return SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          hint(_error ?? '$_noAiTitle.'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _signUpStep(c),
+          ),
+        ]),
+      );
     }
     if (ai != null && !ai.available) {
       return SafeArea(child: hint('Included AI is not available.'));

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'assistant_screens_test.dart' show FakeApi, app;
 
 class _SignUpApi extends FakeApi {
-  _SignUpApi({this.canSignUp = true});
+  _SignUpApi({this.canSignUp = true, super.messageList});
   final bool canSignUp;
   final sent = <String>[];
   Object? failWith;
@@ -41,6 +41,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('AI chat needs an atomic.place account'), findsOneWidget);
     expect(find.byKey(const Key('sign-up-open')), findsNothing);
+  });
+
+  testWidgets('an existing chat offers the account below its messages',
+      (tester) async {
+    final api = _SignUpApi(messageList: [
+      (id: 'p#1', role: 'user', text: 'Where to?', createdAt: 1),
+    ]);
+    await tester.pumpWidget(
+        app(ChatScreen(api: api, subject: 'did:ad:chat', title: 'Trip')));
+    await tester.pumpAndSettle();
+    expect(find.text('Where to?'), findsOneWidget);
+    expect(find.textContaining('AI chat needs an atomic.place account'),
+        findsOneWidget);
+    expect(find.byKey(const Key('sign-up-open')), findsOneWidget);
   });
 
   testWidgets('button, email, wait, then the chat appears', (tester) async {
