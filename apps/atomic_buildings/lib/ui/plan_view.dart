@@ -5,14 +5,17 @@ import 'package:flutter/material.dart';
 
 import '../src/geometry.dart';
 import '../src/repository.dart';
+import '../src/room_scanner.dart';
+import '../src/roomplan.dart';
 import '../src/terms.g.dart';
 import 'common.dart';
 
 /// A storey selector over a 2D plan of the chosen storey.
 class PlanView extends StatefulWidget {
-  const PlanView(this.repo, this.home, {super.key});
+  const PlanView(this.repo, this.home, {super.key, required this.scanner});
   final BuildingRepository repo;
   final Resource home;
+  final RoomScanner scanner;
 
   @override
   State<PlanView> createState() => _PlanViewState();
@@ -20,6 +23,21 @@ class PlanView extends StatefulWidget {
 
 class _PlanViewState extends State<PlanView> {
   String? _storey;
+  late final Future<bool> _canScan = widget.scanner.isSupported();
+
+  Future<void> _scan(Resource storey) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final room = await widget.scanner.scan();
+      if (room == null) return;
+      final items = await importScannedRoom(widget.repo, storey, room);
+      messenger.showSnackBar(SnackBar(
+          content:
+              Text('${items.length} items proposed, review them on the plan')));
+    } on Object catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Scan failed: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Watch(
@@ -30,47 +48,66 @@ class _PlanViewState extends State<PlanView> {
           final current =
               storeys.where((s) => s.subject == _storey).firstOrNull ??
                   storeys.firstOrNull;
-          return Column(children: [
-            SizedBox(
-              height: 56,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.all(8),
-                children: [
-                  for (final s in storeys)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(s.name ?? '?'),
-                        selected: s == current,
-                        onSelected: (_) => setState(() => _storey = s.subject),
+          return Stack(children: [
+            Column(children: [
+              SizedBox(
+                height: 56,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.all(8),
+                  children: [
+                    for (final s in storeys)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(s.name ?? '?'),
+                          selected: s == current,
+                          onSelected: (_) =>
+                              setState(() => _storey = s.subject),
+                        ),
                       ),
+                    ActionChip(
+                      avatar: const Icon(Icons.add),
+                      label: const Text('Storey'),
+                      onPressed: () async {
+                        final name =
+                            await askText(context, 'Name of the storey');
+                        if (name == null) return;
+                        await widget.repo.createStorey(
+                          widget.home,
+                          name,
+                          elevation: storeys.length * 2.8,
+                          level: storeys.length,
+                        );
+                      },
                     ),
-                  ActionChip(
-                    avatar: const Icon(Icons.add),
-                    label: const Text('Storey'),
-                    onPressed: () async {
-                      final name = await askText(context, 'Name of the storey');
-                      if (name == null) return;
-                      await widget.repo.createStorey(
-                        widget.home,
-                        name,
-                        elevation: storeys.length * 2.8,
-                        level: storeys.length,
-                      );
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: current == null
-                  ? const Center(child: Text('Add a storey to start'))
-                  : _Plan(
-                      key: ValueKey(current.subject),
-                      repo: widget.repo,
-                      storey: current),
-            ),
+              Expanded(
+                child: current == null
+                    ? const Center(child: Text('Add a storey to start'))
+                    : _Plan(
+                        key: ValueKey(current.subject),
+                        repo: widget.repo,
+                        storey: current),
+              ),
+            ]),
+            if (current != null)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FutureBuilder(
+                  future: _canScan,
+                  builder: (context, snap) => snap.data != true
+                      ? const SizedBox()
+                      : FloatingActionButton.extended(
+                          onPressed: () => _scan(current),
+                          icon: const Icon(Icons.view_in_ar),
+                          label: const Text('Scan room'),
+                        ),
+                ),
+              ),
           ]);
         },
       );

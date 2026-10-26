@@ -2,15 +2,19 @@ import 'package:atomic_store/atomic_store.dart';
 import 'package:flutter/material.dart';
 
 import '../src/repository.dart';
+import '../src/room_scanner.dart';
 import 'common.dart';
 import 'plan_view.dart';
 import 'questions_view.dart';
 import 'sources_view.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage(this.repo, this.home, {super.key});
+  const HomePage(this.repo, this.home, {super.key, this.scanner});
   final BuildingRepository repo;
   final Resource home;
+
+  /// Null means the platform scanner (RoomPlan on iOS).
+  final RoomScanner? scanner;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -25,7 +29,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(title: Text(home.name ?? 'Home')),
       body: [
-        PlanView(repo, home),
+        PlanView(repo, home, scanner: widget.scanner ?? PlatformRoomScanner()),
         SourcesView(repo, home),
         QuestionsView(repo, home),
       ][_tab],

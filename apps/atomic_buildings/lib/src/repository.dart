@@ -25,6 +25,7 @@ abstract final class Review {
 
 abstract final class MediaKind {
   static const photo = 'photo',
+      scan = 'scan',
       pdf = 'pdf',
       floorplan = 'floorplan',
       note = 'note';
@@ -80,8 +81,11 @@ class BuildingRepository {
     return r;
   }
 
-  static Map<String, Object> _review(String origin, double? confidence) => {
+  static Map<String, Object> _review(
+          String origin, double? confidence, Resource? run) =>
+      {
         Bldg.origin: origin,
+        if (run != null) Bldg.createdByRun: LinkValue(run.subject),
         Bldg.reviewState:
             origin == Origin.user ? Review.confirmed : Review.proposed,
         if (confidence != null) Bldg.confidence: confidence,
@@ -123,13 +127,16 @@ class BuildingRepository {
     List<Pt> boundary, {
     String origin = Origin.user,
     double? confidence,
+    double? height,
+    Resource? run,
   }) =>
       _create(storey.parent, BuildingClass.space, {
+        if (height != null) Bldg.height: height,
         Props.name: name,
         Bldg.storey: LinkValue(storey.subject),
         Bldg.usage: usage,
         Bldg.boundary: JsonValue.encode(polygonToJson(boundary)),
-        ..._review(origin, confidence),
+        ..._review(origin, confidence, run),
       });
 
   Future<Resource> createElement(
@@ -140,6 +147,7 @@ class BuildingRepository {
     Resource? hostedBy,
     String origin = Origin.user,
     double? confidence,
+    Resource? run,
   }) =>
       _create(storey.parent, BuildingClass.element, {
         Props.name: name,
@@ -148,7 +156,7 @@ class BuildingRepository {
         Bldg.geometryKind: geometry.kind,
         Bldg.geometry: JsonValue.encode(geometry.toJson()),
         if (hostedBy != null) Bldg.hostedBy: LinkValue(hostedBy.subject),
-        ..._review(origin, confidence),
+        ..._review(origin, confidence, run),
       });
 
   /// Something the user gave: [file] is the subject of its File resource,
@@ -159,11 +167,12 @@ class BuildingRepository {
     String mediaKind, {
     String? file,
     DateTime? capturedAt,
+    String status = 'new',
   }) =>
       _create(home.subject, BuildingClass.source, {
         Props.name: name,
         Bldg.mediaKind: mediaKind,
-        Bldg.sourceStatus: 'new',
+        Bldg.sourceStatus: status,
         Bldg.capturedAt: TimestampValue(
             (capturedAt ?? DateTime.now()).millisecondsSinceEpoch),
         if (file != null) Bldg.sourceFile: LinkValue(file),
@@ -175,12 +184,31 @@ class BuildingRepository {
     Resource supports, {
     Object? locator,
     double? confidence,
+    Resource? run,
   }) =>
       _create(home.subject, BuildingClass.evidence, {
+        if (run != null) Bldg.createdByRun: LinkValue(run.subject),
         Bldg.source: LinkValue(source.subject),
         Bldg.supports: LinkValue(supports.subject),
         if (locator != null) Bldg.locator: JsonValue.encode(locator),
         if (confidence != null) Bldg.confidence: confidence,
+      });
+
+  /// One finished pass of [model] over [inputs] (status `completed`).
+  Future<Resource> addAnalysisRun(
+    Resource home,
+    String name,
+    String model, {
+    List<Resource> inputs = const [],
+    String? summary,
+  }) =>
+      _create(home.subject, BuildingClass.analysisRun, {
+        Props.name: name,
+        Bldg.model: model,
+        Bldg.runStatus: 'completed',
+        Bldg.startedAt: TimestampValue(DateTime.now().millisecondsSinceEpoch),
+        if (inputs.isNotEmpty) Bldg.inputs: [for (final i in inputs) i.subject],
+        if (summary != null) Props.description: summary,
       });
 
   Future<Resource> createListing(
