@@ -152,12 +152,16 @@ class _ChatsScreenState extends State<ChatsScreen> {
     widget.api.storeChanges?.addListener(_storeChanged);
   }
 
-  /// The store may have new conversations or messages: read that list again
-  /// (only while the home is what is looked at).
+  /// The store may have new conversations, messages or favorites (another
+  /// device's, synced in): read those lists again (only while the home is
+  /// what is looked at).
   void _storeChanged() {
     if (!mounted || _covered) return;
     if (ModalRoute.of(context)?.isCurrent == false) return;
-    setState(() => _conversations = widget.api.conversations());
+    setState(() {
+      _conversations = widget.api.conversations();
+      _favorites = widget.api.favorites();
+    });
   }
 
   /// SharedPreferences key: the activity feed's "Show mine" (per device).
