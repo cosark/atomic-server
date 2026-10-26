@@ -27,6 +27,12 @@ class SlideBackRoute<T> extends PageRouteBuilder<T> {
 
   final bool _instant;
 
+  /// In the split layout: another detail page lies under this one in the
+  /// pane, so a swipe has something to go back to. The shell sets it when it
+  /// pushes the page over one. The first detail page has nothing under it and
+  /// takes no swipe.
+  bool hasDetailBelow = false;
+
   /// What lies under every page: the app's surface colour. A page that is
   /// sliding or loading (a web view not yet painted, a placeholder without a
   /// colour) shows this, never the window's black.
@@ -105,9 +111,11 @@ class SlideBackRoute<T> extends PageRouteBuilder<T> {
       Animation<double> secondaryAnimation, Widget child) {
     return AnimatedBuilder(
       animation: animation,
-      // Next to a list there is nothing to swipe back to: a horizontal
-      // drag claiming the page would fight its vertical scrolling.
-      child: _instant ? child : _SwipeBack(route: this, child: child),
+      // The first page next to a list has nothing to swipe back to: a
+      // horizontal drag claiming the page would fight its vertical scrolling.
+      child: _instant && !hasDetailBelow
+          ? child
+          : _SwipeBack(route: this, child: child),
       builder: (context, child) {
         final t = _byHand
             ? animation.value
@@ -271,10 +279,11 @@ class _SwipeBackState extends State<_SwipeBack> {
 
   @override
   Widget build(BuildContext context) =>
-      // Next to a list (the detail pane) there is no page below to swipe
-      // back to, and a horizontal drag claiming the whole page fights the
-      // vertical scrolling of everything in it.
-      ShellScope.layoutOf(context) == ShellLayout.split
+      // The first page in the detail pane has no page below to swipe back to,
+      // and a horizontal drag claiming the whole page fights the vertical
+      // scrolling of everything in it. A page over another detail page swipes.
+      ShellScope.layoutOf(context) == ShellLayout.split &&
+              !widget.route.hasDetailBelow
           ? widget.child
           : _swipe();
 

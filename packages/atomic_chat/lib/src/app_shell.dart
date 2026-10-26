@@ -390,11 +390,14 @@ class ShellController extends ChangeNotifier {
   /// ([overList]) opened from a section's full list ([ShellPage.isList])
   /// goes over it, and back returns to the list.
   Future<T?> _show<T>(NavigatorState navigator, Route<T> route,
-          {bool overList = false}) {
+      {bool overList = false}) {
     driveSwitcher.value = false;
-    return split && !(overList && ShellPage.isList(topKind))
-        ? navigator.pushAndRemoveUntil(route, (r) => r.isFirst)
-        : navigator.push(route);
+    if (split && !(overList && ShellPage.isList(topKind))) {
+      return navigator.pushAndRemoveUntil(route, (r) => r.isFirst);
+    }
+    // In the pane, over another detail page: that page can be swiped back to.
+    if (split && route is SlideBackRoute<T>) route.hasDetailBelow = true;
+    return navigator.push(route);
   }
 
   /// Opens the page of a resource picked from a list (the home, search):

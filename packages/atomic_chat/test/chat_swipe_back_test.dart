@@ -99,4 +99,47 @@ void main() {
       expect(find.byType(ChatScreen), findsNothing);
     });
   }
+
+  group('tablet', () {
+    Future<void> openList(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester
+          .pumpWidget(shellApp(ChatsScreen(drive: 'did:ad:drive', api: api())));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Show all (6)'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> swipe(WidgetTester tester) async {
+      final g = await tester.startGesture(const Offset(700, 300));
+      for (var i = 0; i < 10; i++) {
+        await g.moveBy(const Offset(30, 0),
+            timeStamp: Duration(milliseconds: 10 * (i + 1)));
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      await g.up(timeStamp: const Duration(milliseconds: 110));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a swipe right in a chat in the detail pane goes back',
+        (tester) async {
+      await openList(tester);
+      await tester.tap(find.text('Chat 5').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsOneWidget);
+      await swipe(tester);
+      expect(find.byType(ChatScreen), findsNothing);
+      expect(find.text('Chat 5'), findsWidgets);
+    });
+
+    testWidgets('the first detail page does not leave on a swipe',
+        (tester) async {
+      await openList(tester);
+      expect(find.byKey(const Key('chats-new')), findsOneWidget);
+      await swipe(tester);
+      expect(find.byKey(const Key('chats-new')), findsOneWidget);
+    });
+  });
 }
