@@ -1,7 +1,7 @@
 # The Flutter app joins the browser's WebRTC rooms
 
-**Status:** Dart, Rust and tests are in; the bridge binding is the one open step
-(section 6). Until it lands the app contacts nobody.
+**Status:** Dart, Rust, the bridge binding and the app wiring are in; what is
+left is the device check ("Verify on a device").
 
 ## Problem
 
@@ -90,7 +90,7 @@ without the native library):
 - `ephemeral` frames (presence, cursors) from the browser are accepted by the
   session and dropped; the app sends none.
 
-## Bridge binding (not yet in the tree)
+## Bridge binding (in the tree)
 
 `packages/atomic_store_flutter` is another thread's package, and the crate that
 `atomic_lib::host` calls `flutter/rust` lives there now

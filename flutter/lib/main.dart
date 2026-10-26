@@ -18,6 +18,7 @@ import 'package:atomic_chat/atomic_chat.dart'
         defaultAttachmentPicker;
 import 'assistant/atomic_assistant_api.dart';
 import 'assistant/file_attachment_picker.dart';
+import 'atomic/bridge_peer_link_backend.dart';
 import 'bootstrap.dart';
 import 'perf_seed.dart';
 import 'screens/login_screen.dart';
@@ -54,6 +55,7 @@ void main() async {
     startApp: () {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       defaultAttachmentPicker = const FileSelectorAttachmentPicker();
+      PeerSyncHost.instance.backend = const BridgePeerLinkBackend();
       _runAtomicApp();
     },
     mark: Perf.mark,

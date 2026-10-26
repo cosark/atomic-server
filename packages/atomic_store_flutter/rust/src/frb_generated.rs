@@ -27,6 +27,7 @@
 // Section: imports
 
 use crate::api::resources::*;
+use crate::api::simple::webrtc_peer::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
@@ -39,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -103618052;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 531168344;
 
 // Section: executor
 
@@ -4083,6 +4084,242 @@ fn wire__crate__api__resources__AtomicStore_warm_search_impl(
         },
     )
 }
+fn wire__crate__api__simple__webrtc_peer__WebRtcLink_close_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "WebRtcLink_close",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = Result::<_, ()>::Ok({
+                            crate::api::simple::webrtc_peer::WebRtcLink::close(&*api_that_guard)
+                                .await;
+                        })?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__simple__webrtc_peer__WebRtcLink_handle_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "WebRtcLink_handle",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>,
+            >>::sse_decode(&mut deserializer);
+            let api_frame = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::simple::webrtc_peer::WebRtcLink::handle(
+                            &*api_that_guard,
+                            api_frame,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__simple__webrtc_peer__WebRtcLink_next_live_frames_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "WebRtcLink_next_live_frames",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::simple::webrtc_peer::WebRtcLink::next_live_frames(
+                                &*api_that_guard,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__simple__webrtc_peer__WebRtcLink_reconcile_frame_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "WebRtcLink_reconcile_frame",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::simple::webrtc_peer::WebRtcLink::reconcile_frame(
+                                &*api_that_guard,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__simple__peers__add_known_peer_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5976,6 +6213,49 @@ fn wire__crate__api__simple__store__open_db_impl(
                 transform_result_sse::<_, String>(
                     (move || async move {
                         let output_ok = crate::api::simple::store::open_db(api_path).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__simple__webrtc_peer__open_webrtc_link_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "open_webrtc_link",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_drive = <String>::sse_decode(&mut deserializer);
+            let api_binding = <String>::sse_decode(&mut deserializer);
+            let api_expected_peer = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok = crate::api::simple::webrtc_peer::open_webrtc_link(
+                            api_drive,
+                            api_binding,
+                            api_expected_peer,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7980,6 +8260,9 @@ fn wire__crate__api__simple__resource__watch_resource_impl(
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>
 );
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>
+);
 
 // Section: dart2rust
 
@@ -7988,6 +8271,16 @@ impl SseDecode for AtomicStore {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
+impl SseDecode for WebRtcLink {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -8003,6 +8296,16 @@ impl SseDecode for std::collections::HashMap<String, u32> {
 
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
+    }
+}
+
+impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8287,6 +8590,18 @@ impl SseDecode for Vec<crate::api::node::KnownPeerInfo> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::node::KnownPeerInfo>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<Vec<u8>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<Vec<u8>>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -8695,6 +9010,32 @@ impl SseDecode for crate::api::simple::types::VersionMetadata {
     }
 }
 
+impl SseDecode for crate::api::simple::webrtc_peer::WebRtcLinkOutput {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_frames = <Vec<Vec<u8>>>::sse_decode(deserializer);
+        let mut var_changed = <Vec<String>>::sse_decode(deserializer);
+        let mut var_ready = <bool>::sse_decode(deserializer);
+        return crate::api::simple::webrtc_peer::WebRtcLinkOutput {
+            frames: var_frames,
+            changed: var_changed,
+            ready: var_ready,
+        };
+    }
+}
+
+impl SseDecode for crate::api::simple::webrtc_peer::WebRtcLinkStart {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_link = <WebRtcLink>::sse_decode(deserializer);
+        let mut var_challenge = <Vec<u8>>::sse_decode(deserializer);
+        return crate::api::simple::webrtc_peer::WebRtcLinkStart {
+            link: var_link,
+            challenge: var_challenge,
+        };
+    }
+}
+
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -9011,289 +9352,319 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        72 => {
+        70 => wire__crate__api__simple__webrtc_peer__WebRtcLink_close_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        71 => wire__crate__api__simple__webrtc_peer__WebRtcLink_handle_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        72 => wire__crate__api__simple__webrtc_peer__WebRtcLink_next_live_frames_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        73 => wire__crate__api__simple__webrtc_peer__WebRtcLink_reconcile_frame_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        76 => {
             wire__crate__api__assistant__append_chat_entry_impl(port, ptr, rust_vec_len, data_len)
         }
-        74 => wire__crate__api__simple__agent__clear_agent_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__simple__sync__close_ws_sync_impl(port, ptr, rust_vec_len, data_len),
-        76 => {
+        78 => wire__crate__api__simple__agent__clear_agent_impl(port, ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__simple__sync__close_ws_sync_impl(port, ptr, rust_vec_len, data_len),
+        80 => {
             wire__crate__api__simple__ws_sync__close_ws_sync_impl(port, ptr, rust_vec_len, data_len)
         }
-        77 => wire__crate__api__simple__sync__connect_home_server_impl(
+        81 => wire__crate__api__simple__sync__connect_home_server_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        79 => wire__crate__api__assistant__create_ai_chat_impl(port, ptr, rust_vec_len, data_len),
-        80 => wire__crate__api__simple__drive__create_drive_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__simple__resource__create_resource_impl(
+        83 => wire__crate__api__assistant__create_ai_chat_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__simple__drive__create_drive_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__simple__resource__create_resource_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        82 => wire__crate__api__assistant__create_resource_of_class_impl(
+        86 => wire__crate__api__assistant__create_resource_of_class_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        83 => wire__crate__api__resources__create_resource_with_values_impl(
+        87 => wire__crate__api__resources__create_resource_with_values_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        84 => wire__crate__api__resources__destroy_resource_impl(port, ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__embed__embed_call_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__simple__files__fetch_file_bytes_impl(
+        88 => wire__crate__api__resources__destroy_resource_impl(port, ptr, rust_vec_len, data_len),
+        90 => wire__crate__api__embed__embed_call_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__simple__files__fetch_file_bytes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        88 => wire__crate__api__simple__store__flush_db_impl(port, ptr, rust_vec_len, data_len),
-        89 => {
+        92 => wire__crate__api__simple__store__flush_db_impl(port, ptr, rust_vec_len, data_len),
+        93 => {
             wire__crate__api__assistant__follow_conversation_impl(port, ptr, rust_vec_len, data_len)
         }
-        91 => wire__crate__api__simple__agent__get_active_agent_impl(
+        95 => wire__crate__api__simple__agent__get_active_agent_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => {
+        97 => {
             wire__crate__api__resources__get_child_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        98 => {
+        102 => {
             wire__crate__api__simple__agent__get_own_profile_impl(port, ptr, rust_vec_len, data_len)
         }
-        100 => {
+        104 => {
             wire__crate__api__simple__resource__get_property_impl(port, ptr, rust_vec_len, data_len)
         }
-        101 => {
+        105 => {
             wire__crate__api__resources__get_resource_data_impl(port, ptr, rust_vec_len, data_len)
         }
-        102 => wire__crate__api__simple__resource__get_resource_history_impl(
+        106 => wire__crate__api__simple__resource__get_resource_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__crate__api__assistant__import_ai_chat_impl(port, ptr, rust_vec_len, data_len),
-        104 => wire__crate__api__simple__store__init_app_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__assistant__list_activity_impl(port, ptr, rust_vec_len, data_len),
-        106 => {
+        107 => wire__crate__api__assistant__import_ai_chat_impl(port, ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__simple__store__init_app_impl(port, ptr, rust_vec_len, data_len),
+        109 => wire__crate__api__assistant__list_activity_impl(port, ptr, rust_vec_len, data_len),
+        110 => {
             wire__crate__api__assistant__list_activity_page_impl(port, ptr, rust_vec_len, data_len)
         }
-        107 => wire__crate__api__assistant__list_ai_chats_impl(port, ptr, rust_vec_len, data_len),
-        108 => wire__crate__api__assistant__list_children_impl(port, ptr, rust_vec_len, data_len),
-        109 => {
+        111 => wire__crate__api__assistant__list_ai_chats_impl(port, ptr, rust_vec_len, data_len),
+        112 => wire__crate__api__assistant__list_children_impl(port, ptr, rust_vec_len, data_len),
+        113 => {
             wire__crate__api__assistant__list_conversations_impl(port, ptr, rust_vec_len, data_len)
         }
-        110 => wire__crate__api__simple__drive__list_drives_impl(port, ptr, rust_vec_len, data_len),
-        111 => wire__crate__api__simple__drive__list_drives_with_names_impl(
+        114 => wire__crate__api__simple__drive__list_drives_impl(port, ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__simple__drive__list_drives_with_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        112 => wire__crate__api__assistant__list_favorites_impl(port, ptr, rust_vec_len, data_len),
-        113 => {
+        116 => wire__crate__api__assistant__list_favorites_impl(port, ptr, rust_vec_len, data_len),
+        117 => {
             wire__crate__api__assistant__list_notifications_impl(port, ptr, rust_vec_len, data_len)
         }
-        114 => wire__crate__api__assistant__list_recent_resources_impl(
+        118 => wire__crate__api__assistant__list_recent_resources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        118 => wire__crate__api__simple__agent__load_agent_impl(port, ptr, rust_vec_len, data_len),
-        119 => wire__crate__api__assistant__mark_notification_read_impl(
+        122 => wire__crate__api__simple__agent__load_agent_impl(port, ptr, rust_vec_len, data_len),
+        123 => wire__crate__api__assistant__mark_notification_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        120 => wire__crate__api__assistant__move_resource_impl(port, ptr, rust_vec_len, data_len),
-        121 => wire__crate__api__resources__new_drive_impl(port, ptr, rust_vec_len, data_len),
-        123 => wire__crate__api__simple__store__open_db_impl(port, ptr, rust_vec_len, data_len),
-        124 => wire__crate__api__simple__sync__open_ws_sync_impl(port, ptr, rust_vec_len, data_len),
-        125 => {
+        124 => wire__crate__api__assistant__move_resource_impl(port, ptr, rust_vec_len, data_len),
+        125 => wire__crate__api__resources__new_drive_impl(port, ptr, rust_vec_len, data_len),
+        127 => wire__crate__api__simple__store__open_db_impl(port, ptr, rust_vec_len, data_len),
+        128 => wire__crate__api__simple__webrtc_peer__open_webrtc_link_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        129 => wire__crate__api__simple__sync__open_ws_sync_impl(port, ptr, rust_vec_len, data_len),
+        130 => {
             wire__crate__api__simple__ws_sync__open_ws_sync_impl(port, ptr, rust_vec_len, data_len)
         }
-        126 => {
+        131 => {
             wire__crate__api__simple__peers__peer_announce_impl(port, ptr, rust_vec_len, data_len)
         }
-        127 => wire__crate__api__simple__peers__peer_discover_sync_impl(
+        132 => wire__crate__api__simple__peers__peer_discover_sync_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__crate__api__simple__peers__peer_sync_impl(port, ptr, rust_vec_len, data_len),
-        131 => {
+        135 => wire__crate__api__simple__peers__peer_sync_impl(port, ptr, rust_vec_len, data_len),
+        136 => {
             wire__crate__api__simple__sync__poll_db_event_impl(port, ptr, rust_vec_len, data_len)
         }
-        132 => {
+        137 => {
             wire__crate__api__simple__sync__poll_sync_events_impl(port, ptr, rust_vec_len, data_len)
         }
-        133 => wire__crate__api__simple__ws_sync__post_commit_over_ws_impl(
+        138 => wire__crate__api__simple__ws_sync__post_commit_over_ws_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        134 => wire__crate__api__assistant__read_chat_impl(port, ptr, rust_vec_len, data_len),
-        135 => wire__crate__api__assistant__read_chat_after_impl(port, ptr, rust_vec_len, data_len),
-        136 => wire__crate__api__assistant__read_chat_page_impl(port, ptr, rust_vec_len, data_len),
-        137 => wire__crate__api__assistant__read_chat_room_impl(port, ptr, rust_vec_len, data_len),
-        138 => wire__crate__api__assistant__read_chat_room_after_impl(
+        139 => wire__crate__api__assistant__read_chat_impl(port, ptr, rust_vec_len, data_len),
+        140 => wire__crate__api__assistant__read_chat_after_impl(port, ptr, rust_vec_len, data_len),
+        141 => wire__crate__api__assistant__read_chat_page_impl(port, ptr, rust_vec_len, data_len),
+        142 => wire__crate__api__assistant__read_chat_room_impl(port, ptr, rust_vec_len, data_len),
+        143 => wire__crate__api__assistant__read_chat_room_after_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => {
+        144 => {
             wire__crate__api__assistant__read_chat_room_page_impl(port, ptr, rust_vec_len, data_len)
         }
-        140 => {
+        145 => {
             wire__crate__api__assistant__read_conversation_impl(port, ptr, rust_vec_len, data_len)
         }
-        141 => wire__crate__api__assistant__read_conversation_after_impl(
+        146 => wire__crate__api__assistant__read_conversation_after_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__assistant__read_conversation_page_impl(
+        147 => wire__crate__api__assistant__read_conversation_page_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => {
+        148 => {
             wire__crate__api__simple__files__read_file_bytes_impl(port, ptr, rust_vec_len, data_len)
         }
-        144 => {
+        149 => {
             wire__crate__api__context__read_resource_text_impl(port, ptr, rust_vec_len, data_len)
         }
-        146 => wire__crate__api__simple__sync__resolve_drive_origins_impl(
+        151 => wire__crate__api__simple__sync__resolve_drive_origins_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => wire__crate__api__assistant__resource_icons_impl(port, ptr, rust_vec_len, data_len),
-        149 => wire__crate__api__simple__sync__resume_app_session_impl(
+        152 => wire__crate__api__assistant__resource_icons_impl(port, ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__simple__sync__resume_app_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => wire__crate__api__resources__save_resource_changes_impl(
+        155 => wire__crate__api__resources__save_resource_changes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        151 => wire__crate__api__assistant__search_impl(port, ptr, rust_vec_len, data_len),
-        152 => {
+        156 => wire__crate__api__assistant__search_impl(port, ptr, rust_vec_len, data_len),
+        157 => {
             wire__crate__api__resources__search_resources_impl(port, ptr, rust_vec_len, data_len)
         }
-        153 => wire__crate__api__assistant__send_chat_room_message_impl(
+        158 => wire__crate__api__assistant__send_chat_room_message_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__crate__api__assistant__send_conversation_message_impl(
+        159 => wire__crate__api__assistant__send_conversation_message_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__crate__api__simple__ws_sync__server_origin_to_ws_url_impl(
+        160 => wire__crate__api__simple__ws_sync__server_origin_to_ws_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        156 => wire__crate__api__simple__drive__set_active_drive_impl(
+        161 => wire__crate__api__simple__drive__set_active_drive_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__crate__api__simple__agent__set_agent_profile_impl(
+        162 => wire__crate__api__simple__agent__set_agent_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        161 => {
+        166 => {
             wire__crate__api__simple__resource__set_property_impl(port, ptr, rust_vec_len, data_len)
         }
-        162 => wire__crate__api__simple__agent__setup_impl(port, ptr, rust_vec_len, data_len),
-        163 => wire__crate__api__simple__peers__start_peer_impl(port, ptr, rust_vec_len, data_len),
-        165 => wire__crate__api__simple__store__store_stats_impl(port, ptr, rust_vec_len, data_len),
-        166 => wire__crate__api__simple__sync__sync_connectivity_now_impl(
+        167 => wire__crate__api__simple__agent__setup_impl(port, ptr, rust_vec_len, data_len),
+        168 => wire__crate__api__simple__peers__start_peer_impl(port, ptr, rust_vec_len, data_len),
+        170 => wire__crate__api__simple__store__store_stats_impl(port, ptr, rust_vec_len, data_len),
+        171 => wire__crate__api__simple__sync__sync_connectivity_now_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        167 => wire__crate__api__simple__sync__sync_drive_to_server_impl(
+        172 => wire__crate__api__simple__sync__sync_drive_to_server_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        168 => wire__crate__api__simple__agent__upload_agent_picture_impl(
+        173 => wire__crate__api__simple__agent__upload_agent_picture_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        169 => wire__crate__api__simple__peers__wait_for_peer_count_change_impl(
+        174 => wire__crate__api__simple__peers__wait_for_peer_count_change_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        170 => wire__crate__api__resources__wait_for_resource_event_impl(
+        175 => wire__crate__api__resources__wait_for_resource_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        171 => wire__crate__api__resources__wait_for_store_event_impl(
+        176 => wire__crate__api__resources__wait_for_store_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        172 => wire__crate__api__simple__sync__wait_for_sync_event_impl(
+        177 => wire__crate__api__simple__sync__wait_for_sync_event_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        173 => wire__crate__api__simple__resource__warm_resource_history_impl(
+        178 => wire__crate__api__simple__resource__warm_resource_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        174 => wire__crate__api__assistant__warm_search_impl(port, ptr, rust_vec_len, data_len),
-        175 => wire__crate__api__simple__resource__watch_children_impl(
+        179 => wire__crate__api__assistant__warm_search_impl(port, ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__simple__resource__watch_children_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        176 => wire__crate__api__simple__resource__watch_resource_impl(
+        181 => wire__crate__api__simple__resource__watch_resource_impl(
             port,
             ptr,
             rust_vec_len,
@@ -9368,46 +9739,46 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__simple__peers__add_known_peer_impl(ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__simple__agent__agent_from_secret_impl(ptr, rust_vec_len, data_len),
-        73 => {
+        74 => wire__crate__api__simple__peers__add_known_peer_impl(ptr, rust_vec_len, data_len),
+        75 => wire__crate__api__simple__agent__agent_from_secret_impl(ptr, rust_vec_len, data_len),
+        77 => {
             wire__crate__api__simple__store__background_activity_impl(ptr, rust_vec_len, data_len)
         }
-        78 => wire__crate__api__simple__agent__create_agent_impl(ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__simple__store__device_info_impl(ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__simple__sync__genesis_answer_verifies_impl(
+        82 => wire__crate__api__simple__agent__create_agent_impl(ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__simple__store__device_info_impl(ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__simple__sync__genesis_answer_verifies_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        92 => wire__crate__api__simple__drive__get_active_drive_impl(ptr, rust_vec_len, data_len),
-        94 => wire__crate__api__simple__agent__get_device_name_impl(ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__simple__drive__get_drive_impl(ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__simple__peers__get_known_peers_impl(ptr, rust_vec_len, data_len),
-        97 => {
+        96 => wire__crate__api__simple__drive__get_active_drive_impl(ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__simple__agent__get_device_name_impl(ptr, rust_vec_len, data_len),
+        99 => wire__crate__api__simple__drive__get_drive_impl(ptr, rust_vec_len, data_len),
+        100 => wire__crate__api__simple__peers__get_known_peers_impl(ptr, rust_vec_len, data_len),
+        101 => {
             wire__crate__api__simple__peers__get_known_peers_json_impl(ptr, rust_vec_len, data_len)
         }
-        99 => wire__crate__api__simple__peers__get_peer_id_impl(ptr, rust_vec_len, data_len),
-        115 => wire__crate__api__simple__peers__live_peer_count_impl(ptr, rust_vec_len, data_len),
-        116 => wire__crate__api__simple__peers__live_peer_ids_impl(ptr, rust_vec_len, data_len),
-        117 => wire__crate__api__simple__peers__live_unsaved_peers_json_impl(
+        103 => wire__crate__api__simple__peers__get_peer_id_impl(ptr, rust_vec_len, data_len),
+        119 => wire__crate__api__simple__peers__live_peer_count_impl(ptr, rust_vec_len, data_len),
+        120 => wire__crate__api__simple__peers__live_peer_ids_impl(ptr, rust_vec_len, data_len),
+        121 => wire__crate__api__simple__peers__live_unsaved_peers_json_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        122 => wire__crate__api__assistant__note_resource_opened_impl(ptr, rust_vec_len, data_len),
-        128 => wire__crate__api__simple__peers__peer_search_again_impl(ptr, rust_vec_len, data_len),
-        129 => {
+        126 => wire__crate__api__assistant__note_resource_opened_impl(ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__simple__peers__peer_search_again_impl(ptr, rust_vec_len, data_len),
+        134 => {
             wire__crate__api__simple__peers__peer_search_status_impl(ptr, rust_vec_len, data_len)
         }
-        145 => wire__crate__api__simple__peers__remove_known_peer_impl(ptr, rust_vec_len, data_len),
-        148 => wire__crate__api__assistant__resource_web_url_impl(ptr, rust_vec_len, data_len),
-        158 => {
+        150 => wire__crate__api__simple__peers__remove_known_peer_impl(ptr, rust_vec_len, data_len),
+        153 => wire__crate__api__assistant__resource_web_url_impl(ptr, rust_vec_len, data_len),
+        163 => {
             wire__crate__api__simple__peers__set_app_foreground_impl(ptr, rust_vec_len, data_len)
         }
-        159 => wire__crate__api__simple__agent__set_device_name_impl(ptr, rust_vec_len, data_len),
-        160 => wire__crate__api__simple__drive__set_drive_impl(ptr, rust_vec_len, data_len),
-        164 => wire__crate__api__simple__store__store_recovery_impl(ptr, rust_vec_len, data_len),
+        164 => wire__crate__api__simple__agent__set_device_name_impl(ptr, rust_vec_len, data_len),
+        165 => wire__crate__api__simple__drive__set_drive_impl(ptr, rust_vec_len, data_len),
+        169 => wire__crate__api__simple__store__store_recovery_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -9425,6 +9796,21 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<AtomicStore>> for AtomicStore {
     fn into_into_dart(self) -> FrbWrapper<AtomicStore> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<WebRtcLink> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<WebRtcLink> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<WebRtcLink>> for WebRtcLink {
+    fn into_into_dart(self) -> FrbWrapper<WebRtcLink> {
         self.into()
     }
 }
@@ -10006,11 +10392,61 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::types::VersionMetadat
         self
     }
 }
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::simple::webrtc_peer::WebRtcLinkOutput {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.frames.into_into_dart().into_dart(),
+            self.changed.into_into_dart().into_dart(),
+            self.ready.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::simple::webrtc_peer::WebRtcLinkOutput
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::webrtc_peer::WebRtcLinkOutput>
+    for crate::api::simple::webrtc_peer::WebRtcLinkOutput
+{
+    fn into_into_dart(self) -> crate::api::simple::webrtc_peer::WebRtcLinkOutput {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::simple::webrtc_peer::WebRtcLinkStart {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.link.into_into_dart().into_dart(),
+            self.challenge.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::simple::webrtc_peer::WebRtcLinkStart
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::webrtc_peer::WebRtcLinkStart>
+    for crate::api::simple::webrtc_peer::WebRtcLinkStart
+{
+    fn into_into_dart(self) -> crate::api::simple::webrtc_peer::WebRtcLinkStart {
+        self
+    }
+}
 
 impl SseEncode for AtomicStore {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
+impl SseEncode for WebRtcLink {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -10023,6 +10459,17 @@ impl SseEncode for std::collections::HashMap<String, u32> {
 
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -10248,6 +10695,16 @@ impl SseEncode for Vec<crate::api::node::KnownPeerInfo> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::node::KnownPeerInfo>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<Vec<u8>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <Vec<u8>>::sse_encode(item, serializer);
         }
     }
 }
@@ -10563,6 +11020,23 @@ impl SseEncode for crate::api::simple::types::VersionMetadata {
     }
 }
 
+impl SseEncode for crate::api::simple::webrtc_peer::WebRtcLinkOutput {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<Vec<u8>>>::sse_encode(self.frames, serializer);
+        <Vec<String>>::sse_encode(self.changed, serializer);
+        <bool>::sse_encode(self.ready, serializer);
+    }
+}
+
+impl SseEncode for crate::api::simple::webrtc_peer::WebRtcLinkStart {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <WebRtcLink>::sse_encode(self.link, serializer);
+        <Vec<u8>>::sse_encode(self.challenge, serializer);
+    }
+}
+
 #[cfg(not(target_family = "wasm"))]
 mod io {
     // This file is automatically generated, so please do not edit it.
@@ -10572,6 +11046,7 @@ mod io {
 
     use super::*;
     use crate::api::resources::*;
+    use crate::api::simple::webrtc_peer::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -10595,6 +11070,20 @@ mod io {
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>>::decrement_strong_count(ptr as _);
     }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_atomic_store_flutter_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_atomic_store_flutter_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>::decrement_strong_count(ptr as _);
+    }
 }
 #[cfg(not(target_family = "wasm"))]
 pub use io::*;
@@ -10609,6 +11098,7 @@ mod web {
 
     use super::*;
     use crate::api::resources::*;
+    use crate::api::simple::webrtc_peer::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -10633,6 +11123,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AtomicStore>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<WebRtcLink>>::decrement_strong_count(ptr as _);
     }
 }
 #[cfg(target_family = "wasm")]

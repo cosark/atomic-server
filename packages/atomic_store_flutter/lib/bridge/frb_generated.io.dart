@@ -17,6 +17,7 @@ import 'api/simple/resource.dart';
 import 'api/simple/store.dart';
 import 'api/simple/sync.dart';
 import 'api/simple/types.dart';
+import 'api/simple/webrtc_peer.dart';
 import 'api/simple/ws_sync.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -36,9 +37,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       get rust_arc_decrement_strong_count_AtomicStorePtr => wire
           ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStorePtr;
 
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_WebRtcLinkPtr =>
+      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLinkPtr;
+
   @protected
   AtomicStore
       dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
+          dynamic raw);
+
+  @protected
+  WebRtcLink
+      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
           dynamic raw);
 
   @protected
@@ -47,11 +56,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           dynamic raw);
 
   @protected
+  WebRtcLink
+      dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+          dynamic raw);
+
+  @protected
   Map<String, int> dco_decode_Map_String_u_32_None(dynamic raw);
 
   @protected
   AtomicStore
       dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
+          dynamic raw);
+
+  @protected
+  WebRtcLink
+      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
           dynamic raw);
 
   @protected
@@ -125,6 +144,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<KnownPeerInfo> dco_decode_list_known_peer_info(dynamic raw);
+
+  @protected
+  List<Uint8List> dco_decode_list_list_prim_u_8_strict(dynamic raw);
 
   @protected
   List<LivePeerInfo> dco_decode_list_live_peer_info(dynamic raw);
@@ -229,13 +251,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VersionMetadata dco_decode_version_metadata(dynamic raw);
 
   @protected
+  WebRtcLinkOutput dco_decode_web_rtc_link_output(dynamic raw);
+
+  @protected
+  WebRtcLinkStart dco_decode_web_rtc_link_start(dynamic raw);
+
+  @protected
   AtomicStore
       sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
           SseDeserializer deserializer);
 
   @protected
+  WebRtcLink
+      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+          SseDeserializer deserializer);
+
+  @protected
   AtomicStore
       sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
+          SseDeserializer deserializer);
+
+  @protected
+  WebRtcLink
+      sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
           SseDeserializer deserializer);
 
   @protected
@@ -245,6 +283,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   AtomicStore
       sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
+          SseDeserializer deserializer);
+
+  @protected
+  WebRtcLink
+      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
           SseDeserializer deserializer);
 
   @protected
@@ -322,6 +365,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<KnownPeerInfo> sse_decode_list_known_peer_info(
+      SseDeserializer deserializer);
+
+  @protected
+  List<Uint8List> sse_decode_list_list_prim_u_8_strict(
       SseDeserializer deserializer);
 
   @protected
@@ -432,14 +479,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VersionMetadata sse_decode_version_metadata(SseDeserializer deserializer);
 
   @protected
+  WebRtcLinkOutput sse_decode_web_rtc_link_output(SseDeserializer deserializer);
+
+  @protected
+  WebRtcLinkStart sse_decode_web_rtc_link_start(SseDeserializer deserializer);
+
+  @protected
   void
       sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
           AtomicStore self, SseSerializer serializer);
 
   @protected
   void
+      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+          WebRtcLink self, SseSerializer serializer);
+
+  @protected
+  void
       sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
           AtomicStore self, SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+          WebRtcLink self, SseSerializer serializer);
 
   @protected
   void sse_encode_Map_String_u_32_None(
@@ -449,6 +512,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
       sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore(
           AtomicStore self, SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+          WebRtcLink self, SseSerializer serializer);
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
@@ -530,6 +598,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_known_peer_info(
       List<KnownPeerInfo> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_list_prim_u_8_strict(
+      List<Uint8List> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_live_peer_info(
@@ -647,6 +719,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_version_metadata(
       VersionMetadata self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_web_rtc_link_output(
+      WebRtcLinkOutput self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_web_rtc_link_start(
+      WebRtcLinkStart self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -693,5 +773,37 @@ class RustLibWire implements BaseWire {
           'frbgen_atomic_store_flutter_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore');
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStore =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAtomicStorePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+      rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLinkPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+          'frbgen_atomic_store_flutter_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink');
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLinkPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+      rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLinkPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+          'frbgen_atomic_store_flutter_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink');
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLink =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerWebRtcLinkPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 }

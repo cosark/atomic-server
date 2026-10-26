@@ -33,6 +33,7 @@ pub mod drive;
 pub mod resource;
 pub mod sync;
 pub mod peers;
+pub mod webrtc_peer;
 
 pub(crate) use local_write::*;
 pub use store::*;
