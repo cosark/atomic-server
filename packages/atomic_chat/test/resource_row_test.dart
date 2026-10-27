@@ -32,7 +32,7 @@ void main() {
   test('class names map to icons, anything else to a document', () {
     const expected = {
       'Folder': Icons.folder_outlined,
-      'Drive': Icons.folder_outlined,
+      'Drive': driveIcon,
       'Table': Icons.table_chart_outlined,
       'Canvas': Icons.draw_outlined,
       'AI chat': Icons.chat_bubble_outline,

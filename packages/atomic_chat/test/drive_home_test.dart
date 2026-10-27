@@ -822,7 +822,7 @@ void main() {
                   matching: find.byType(RowLeading)),
               matching: find.byType(Icon));
           return tester.getRect(icon).left +
-              glyphInset(Icons.folder_outlined) / 24 * 20;
+              glyphInset(driveIcon) / 24 * 20;
         }(),
         'Messages heading': titleLeft('messages', 'Messages'),
       };

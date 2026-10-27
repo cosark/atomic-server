@@ -1207,8 +1207,8 @@ void main() {
       // Filled in after the activity list was shown.
       expect(find.text('🚀'), findsOneWidget);
       expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
-      // The drive with an emoji has no folder icon.
-      expect(find.byIcon(Icons.folder_outlined), findsNothing);
+      // The drive with an emoji has no drive icon.
+      expect(find.byIcon(driveIcon), findsNothing);
     });
 
     testWidgets('search results show the emoji, else the class icon',

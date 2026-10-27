@@ -3,11 +3,12 @@ import 'package:atomic_flutter/atomic_flutter.dart'
 import 'package:flutter/material.dart';
 
 import 'home_sections.dart';
+import 'resource_row.dart' show driveIcon;
 
 /// The icon of a Home section.
 IconData homeSectionIcon(HomeSection s) => switch (s) {
       HomeSection.notifications => Icons.notifications_none,
-      HomeSection.drives => Icons.folder_outlined,
+      HomeSection.drives => driveIcon,
       HomeSection.activity => Icons.bolt_outlined,
       HomeSection.chats => Icons.chat_bubble_outline,
       HomeSection.favorites => Icons.star_border,

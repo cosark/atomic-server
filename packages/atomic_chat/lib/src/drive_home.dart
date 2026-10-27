@@ -40,7 +40,7 @@ class DriveAvatar extends StatelessWidget {
         size: size,
         image: d == null ? null : ImageSource.of(d.picture, emoji: d.emoji),
         fallbackLabel: d == null ? '' : driveTitle(d),
-        fallbackIcon: Icons.folder_outlined,
+        fallbackIcon: driveIcon,
         alignGlyphStart: alignGlyphStart,
       ),
     );
@@ -72,6 +72,9 @@ class CurrentDriveHeader extends StatelessWidget {
   /// A drive was picked from the hold menu.
   final ValueChanged<DriveInfo>? onPick;
 
+  /// New drive was picked from the hold menu. Null: the menu offers none.
+  final VoidCallback? onNew;
+
   /// Most drives the hold menu lists.
   static const holdDrives = 5;
 
@@ -82,7 +85,8 @@ class CurrentDriveHeader extends StatelessWidget {
       this.onOpen,
       this.onDrop,
       this.recent = const [],
-      this.onPick});
+      this.onPick,
+      this.onNew});
 
   List<DriveInfo> get _holdDrives {
     final current = drive == null ? null : driveKeyOf(drive!.subject);
@@ -99,9 +103,10 @@ class CurrentDriveHeader extends StatelessWidget {
       required Widget child,
       double? width,
       double? height}) {
-    final drives = _holdDrives;
     final pick = onPick;
-    if (drives.isEmpty || pick == null) {
+    final drives = pick == null ? const <DriveInfo>[] : _holdDrives;
+    final create = onNew;
+    if (drives.isEmpty && create == null) {
       return InkWell(
         key: key,
         mouseCursor: WidgetStateMouseCursor.clickable,
@@ -110,7 +115,8 @@ class CurrentDriveHeader extends StatelessWidget {
         child: SizedBox(width: width, height: height, child: child),
       );
     }
-    return HoldFan<DriveInfo>(
+    // Null is New drive.
+    return HoldFan<DriveInfo?>(
       key: key,
       onTap: onTap,
       // The bottom bar's gesture: swipe or hold, drag to a drive, let go.
@@ -124,9 +130,11 @@ class CurrentDriveHeader extends StatelessWidget {
         for (final d in drives)
           HoldFanItem(driveTitle(d), d,
               emoji: d.emoji,
-              icon: d.emoji == null ? Icons.folder_outlined : null),
+              icon: d.emoji == null ? driveIcon : null),
+        if (create != null)
+          const HoldFanItem('New drive', null, icon: Icons.add),
       ],
-      onSelected: pick,
+      onSelected: (d) => d == null ? create?.call() : pick?.call(d),
       child: child,
     );
   }
@@ -347,6 +355,9 @@ class _DriveSwitcherContentState extends State<DriveSwitcherContent> {
             ),
           ),
         ),
+        if (widget.onNew != null)
+          _action(Icons.add, 'New drive', widget.onNew!,
+              const Key('drive-switcher-new')),
         Flexible(
           fit: widget.fill ? FlexFit.tight : FlexFit.loose,
           child: shown.isEmpty
@@ -378,9 +389,6 @@ class _DriveSwitcherContentState extends State<DriveSwitcherContent> {
         if (widget.onManage != null)
           _action(Icons.folder_copy_outlined, 'Manage drives…',
               widget.onManage!, const Key('drive-switcher-manage')),
-        if (widget.onNew != null)
-          _action(Icons.add, 'New drive', widget.onNew!,
-              const Key('drive-switcher-new')),
       ],
     );
   }

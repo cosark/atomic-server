@@ -14,6 +14,7 @@ import 'models.dart';
 import 'native_views.dart';
 import 'profile_avatar.dart';
 import 'new_document_sheet.dart';
+import 'resource_row.dart' show driveIcon;
 import 'resource_view.dart';
 import 'search_screen.dart';
 
@@ -394,7 +395,7 @@ const newItems = [
   HoldFanItem('AI voice', NewChoice.aiVoice, icon: Icons.mic_none),
   HoldFanItem('Document', NewChoice.document, icon: Icons.description_outlined),
   HoldFanItem('New chat room', NewChoice.chatRoom, icon: Icons.forum_outlined),
-  HoldFanItem('New drive', NewChoice.drive, icon: Icons.folder_outlined),
+  HoldFanItem('New drive', NewChoice.drive, icon: driveIcon),
   HoldFanItem('Other…', NewChoice.other, icon: Icons.add_box_outlined),
 ];
 
@@ -679,7 +680,7 @@ class _SearchButtonState extends State<_SearchButton> {
         const HoldFanItem('All drives', _allDrives, icon: Icons.search),
         for (final d in drives.take(_listDrives))
           HoldFanItem(d.name.isEmpty ? 'Untitled drive' : d.name, d.subject,
-              emoji: d.emoji, icon: d.emoji == null ? Icons.folder_outlined : null),
+              emoji: d.emoji, icon: d.emoji == null ? driveIcon : null),
         const HoldFanItem('AI chats', _aiChats,
             icon: Icons.chat_bubble_outline),
         const HoldFanItem('Messages', _messages, icon: Icons.forum_outlined),

@@ -8,6 +8,9 @@ import 'models.dart';
 import 'row_leading.dart';
 import 'sidebar_metrics.dart';
 
+/// A drive's icon: the web app's hard drive, not a folder.
+const driveIcon = Icons.dns_outlined;
+
 /// The icon of a class, by the class's name as the rows carry it (the class's
 /// own name, or the last part of its subject), as the web app's
 /// `getIconForClass` does. [Icons.description_outlined] for the rest.
@@ -18,7 +21,8 @@ IconData iconForClass(String className) {
       .toLowerCase()
       .replaceAll(RegExp(r'[^a-z0-9]'), '');
   return switch (key) {
-    'folder' || 'drive' => Icons.folder_outlined,
+    'folder' => Icons.folder_outlined,
+    'drive' => driveIcon,
     'table' => Icons.table_chart_outlined,
     'canvas' => Icons.draw_outlined,
     'aichat' || 'conversation' || 'chatroom' => Icons.chat_bubble_outline,

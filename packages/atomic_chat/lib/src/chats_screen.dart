@@ -676,7 +676,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   Widget _driveRow(DriveInfo d) => ResourceRow(
         subject: d.subject,
-        icon: Icons.folder_outlined,
+        icon: driveIcon,
         emoji: d.emoji,
         image: ImageSource.of(d.picture),
         title: d.name.isEmpty ? 'Untitled drive' : d.name,
@@ -816,7 +816,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         height: 14,
                         child: RowLeading(
                             size: 14,
-                            fallbackIcon: Icons.folder_outlined,
+                            fallbackIcon: driveIcon,
                             fallbackLabel: driveName,
                             image: ImageSource.of(a.drivePicture))),
                     const SizedBox(width: 6),
@@ -1170,6 +1170,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
                     _switcher.value = false;
                     _selectDrive(d);
                   },
+                  onNew: _shell == null
+                      ? null
+                      : () {
+                          _switcher.value = false;
+                          ShellActions(widget.api, _shell!).newDrive();
+                        },
                 ),
               ),
             ),

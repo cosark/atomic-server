@@ -109,6 +109,45 @@ void main() {
     expect(find.byKey(const Key('drive-switcher')), findsNothing);
   });
 
+  testWidgets('holding the drive offers New drive, which opens the form',
+      (tester) async {
+    await tester.pumpWidget(_shell(_Api({})));
+    await tester.pumpAndSettle();
+
+    final switcher = find.byKey(const Key('current-drive-switch'));
+    final gesture = await tester.startGesture(tester.getCenter(switcher));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.moveTo(tester.getCenter(find.text('New drive')));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final view = tester.widget<ResourceView>(find.byType(ResourceView));
+    expect(view.path, '/app/new-drive');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('the switcher offers New drive above the drives',
+      (tester) async {
+    await tester.pumpWidget(_shell(_Api({})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('current-drive-switch')));
+    await tester.pumpAndSettle();
+
+    final create = tester.getRect(find.byKey(const Key('drive-switcher-new')));
+    final first = tester
+        .getRect(find.byKey(const ValueKey('drive-switcher-row-did:ad:work')));
+    expect(create.bottom, lessThanOrEqualTo(first.top));
+    await tester.tap(find.byKey(const Key('drive-switcher-new')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ResourceView>(find.byType(ResourceView)).path,
+        '/app/new-drive');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 6));
+  });
+
   testWidgets('one swipe from the selector to a drive switches to it',
       (tester) async {
     final api = _Api({});
