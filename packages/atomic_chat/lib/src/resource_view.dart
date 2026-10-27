@@ -257,16 +257,26 @@ class _ResourceViewState extends State<ResourceView>
     if (_revealed || _revealWatched) return;
     _revealWatched = true;
     final subject = jsonEncode(widget.subject);
+    final title = jsonEncode(widget.title);
+    // Shown once the page's main is the resource's and has its content: no
+    // loading status left in it, or its title already painted (a table or
+    // board shows its header and rows while a cell or a lazy part still
+    // loads; waiting for those kept the placeholder up to the cap). `why`
+    // says what it waited on last, for the log.
     unawaited(_page
-        ?.runJavaScript('(function(){var s=$subject,t=Date.now();'
-            'function done(){requestAnimationFrame(function(){'
+        ?.runJavaScript('(function(){var s=$subject,n=$title,t=Date.now(),'
+            'why="";function done(){requestAnimationFrame(function(){'
             'requestAnimationFrame(function(){AtomicFlutter.postMessage('
-            'JSON.stringify({method:"revealed",ms:Date.now()-t}))})})}'
+            'JSON.stringify({method:"revealed",ms:Date.now()-t,why:why}))})})}'
             'function c(){var all=document.querySelectorAll("main"),m=null;'
             'for(var i=0;i<all.length;i++)if(all[i].getAttribute("about")===s)'
-            'm=all[i];if((m&&m.children.length>1&&'
-            '!m.querySelector("[role=status]"))||Date.now()-t>1500){done();'
-            'return}setTimeout(c,16)}c()})()')
+            'm=all[i];var st=m&&m.querySelector("[role=status]");'
+            'if(!m)why="no main";else if(m.children.length<2)why="empty main";'
+            'else if(st&&!(n&&m.innerText.indexOf(n)>=0))why="status "+'
+            '(st.getAttribute("aria-label")||st.textContent||"").slice(0,40);'
+            'else{done();return}'
+            'if(Date.now()-t>1500){why="cap, "+why;done();return}'
+            'setTimeout(c,16)}c()})()')
         .catchError((_) {}));
   }
 
@@ -726,6 +736,10 @@ class _ResourceViewState extends State<ResourceView>
       return;
     }
     if (request['method'] == 'revealed') {
+      final why = request['why'];
+      if (why is String && why.isNotEmpty) {
+        debugPrint('[warm] revealed after ${request['ms']} ms, waited on $why');
+      }
       _reveal();
       return;
     }
