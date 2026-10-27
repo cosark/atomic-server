@@ -89,6 +89,7 @@ async function renderCell(
   stored: JSONValue,
 ): Promise<Resource> {
   const store = new Store({ serverUrl: 'https://example.com', connect: false });
+
   // Editing also sets createdAt. Keep both Property definitions in cache so
   // committing a cell never waits on a public vocabulary or example server.
   for (const definition of [
@@ -105,6 +106,7 @@ async function renderCell(
     await resource.set(core.properties.shortname, definition.shortname, false);
     store.addResource(resource);
   }
+
   // A `_new:` row stays local, so nothing here reaches for a server.
   const row = await store.newResource({
     subject: '_new:day-row',
