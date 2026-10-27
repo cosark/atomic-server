@@ -4,15 +4,7 @@ Choose transports based on where your app runs, which replicas must communicate,
 
 ## Start with a topology
 
-| App scenario | Starting point | What to account for |
-| --- | --- | --- |
-| Browser app with access across devices | Local persistence plus WebSocket sync to an AtomicServer | The server supplies an always-online replica. Show local, pending, accepted and rejected changes distinctly where they matter. |
-| Sharing between open browsers without a data server | WebRTC | Requires a signaling service and sometimes TURN. The current room cap is eight members; this is an implementation limit, not a WebRTC limit. |
-| Native Rust or Flutter devices connecting directly | Iroh | Supports dialing peers with NAT traversal and relay fallback. Devices must overlap online to exchange changes unless an always-online replica is also available. |
-| Native app using a known AtomicServer | WebSocket | A direct server connection is sufficient; add Iroh when direct device pairing is needed. |
-| Mixed browser and native clients | A shared AtomicServer | Browsers cannot directly speak Iroh. WebSocket provides a common meeting point. |
-| Scripts and occasional server writes | HTTP, including `POST /commit` | Request/response access does not provide a live subscription. |
-| Single-device app | Local persistence without a transport | Add synchronization when another replica is needed. |
+The [transports reference](../atomic-sync/transports.md) lists what each transport connects. Two additions: mixed browser and native clients need a shared AtomicServer, because browsers cannot speak Iroh, and a single-device app needs no transport until a second replica appears.
 
 For a browser app, local persistence plus WebSocket sync is a useful default. Add WebRTC when browser-only sharing is part of the product. For native apps, add Iroh when direct pairing or operation without a data server is required. Native transport APIs are feature-gated; see the [Rust library](../rust-lib.md).
 

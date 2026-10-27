@@ -22,10 +22,9 @@ The Flutter SDK wraps the same crate. See [Flutter / Dart](../flutter.md).
 
 ## What the engine does not decide
 
-The engine converges copies and enforces who may write. Your app still decides:
+The engine converges copies and enforces who may write. As the [overview](overview.md) says, merging does not check business rules. Your app still decides:
 
 - what counts as the same record, and how rejected or ambiguous changes are reviewed;
-- business rules, because a merge can combine two valid edits into a result you do not want;
 - key backup and recovery, since an identity is a key;
 - how to migrate data when your model changes.
 

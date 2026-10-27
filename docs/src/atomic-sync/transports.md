@@ -8,7 +8,7 @@ The transport only decides how two devices reach each other. The frames, the sig
 | --- | --- | --- |
 | WebSocket | A client (browser, CLI, app) to an AtomicServer | The server's URL |
 | Iroh (QUIC) | Two native nodes running `atomic_lib`, for example a phone and a laptop or a server | The other node's id, usually from a QR code |
-| WebRTC | Browser tabs, up to eight | A peer link made on the Sync page |
+| WebRTC | Browser tabs, up to eight (an implementation limit) | A peer link made on the Sync page |
 | HTTP `POST /commit` | Any client to an AtomicServer | The server's URL |
 
 ## WebSocket
@@ -33,9 +33,11 @@ Servers can also announce which Drives they hold through the pkarr relay network
 
 ## WebRTC between browsers
 
-Browser tabs can sync with each other through an encrypted WebRTC data channel, with no server holding the data.
+Browser tabs, which cannot accept incoming connections, can sync with each other through an encrypted WebRTC data channel, with no server holding the data.
 A small signaling service introduces the tabs and never sees Drive data.
-Everyone must have the app open to exchange changes. See [browser peer sync](../browser-peer-sync.md).
+Some networks also need a TURN relay. Everyone must have the app open to exchange changes. See [browser peer sync](../browser-peer-sync.md).
+
+A mesh transport over [Reticulum](https://reticulum.network/) is planned but not built.
 
 ## HTTP commits
 
