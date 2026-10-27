@@ -13213,18 +13213,6 @@ msgstr ""
 msgid "The next backup from that browser or app adds them"
 msgstr ""
 
-#: src/components/ConnectDrivePicker.tsx
-msgid "All drives"
-msgstr ""
-
-#: src/routes/SyncRoute.tsx
-msgid "Cloud Server isn’t on for this drive. This server only accepts it for a short while; after that it stops syncing. Set up Cloud Server to keep it here, or turn off sync to keep it on this device only."
-msgstr ""
-
-#: src/routes/SyncRoute.tsx
-msgid "Not hosted yet"
-msgstr ""
-
 #: src/actions/resourceActions.tsx
 msgid "Move..."
 msgstr ""
@@ -13254,12 +13242,36 @@ msgstr ""
 msgid "A resource can't be moved into something inside it."
 msgstr ""
 
-#: src/helpers/moveResource.ts
-msgid "Moving to another drive is not supported yet."
+#: src/components/MoveResourceDialog.tsx
+msgid "You don't have write access to the original."
 msgstr ""
 
-#: src/views/getting-started/WorkspaceLoading.tsx
-msgid "Setting up your workspace on this device…"
+#: src/components/MoveResourceDialog.tsx
+msgid "The original is moved to the Trash of its drive."
+msgstr ""
+
+#: src/components/MoveResourceDialog.tsx
+msgid "Moving to another drive"
+msgstr ""
+
+#: src/components/MoveResourceDialog.tsx
+msgid "This makes a copy with a new identifier, so its link changes. Links and references elsewhere keep pointing at the old identifier; they only keep working through the redirect. Access follows the new parent."
+msgstr ""
+
+#: src/components/MoveResourceDialog.tsx
+msgid "<0/> Leave a redirect at the old location"
+msgstr ""
+
+#: src/components/ConnectDrivePicker.tsx
+msgid "All drives"
+msgstr ""
+
+#: src/routes/SyncRoute.tsx
+msgid "Cloud Server isn’t on for this drive. This server only accepts it for a short while; after that it stops syncing. Set up Cloud Server to keep it here, or turn off sync to keep it on this device only."
+msgstr ""
+
+#: src/routes/SyncRoute.tsx
+msgid "Not hosted yet"
 msgstr ""
 
 #: src/views/Drive/GettingStartedCard.tsx
@@ -13311,6 +13323,11 @@ msgid "Sign up with your email, save your secret or connect a device"
 msgstr ""
 
 #: src/views/Drive/GettingStartedCard.tsx
+#: src/views/Drive/GettingStartedCard.tsx
+msgid "Getting started"
+msgstr ""
+
+#: src/views/Drive/GettingStartedCard.tsx
 msgid "Start a project first"
 msgstr ""
 
@@ -13322,7 +13339,6 @@ msgstr ""
 msgid "Not done yet"
 msgstr ""
 
-#: src/views/Drive/GettingStartedCard.tsx
-#: src/views/Drive/GettingStartedCard.tsx
-msgid "Getting started"
+#: src/views/getting-started/WorkspaceLoading.tsx
+msgid "Setting up your workspace on this device…"
 msgstr ""
