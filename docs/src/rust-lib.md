@@ -1,41 +1,21 @@
 {{#title atomic_lib: local-first data engine}}
 # atomic_lib: local-first data engine
 
-`atomic_lib` is the library and product boundary for local-first resource
-storage, identity, permissions, queries, search, and synchronization. It powers
-`atomic-server`, `atomic-cli`, the WASM build inside the web app and the
-[Flutter SDK](flutter.md). Its application API provides:
+`atomic_lib` is the embeddable local-first engine that powers AtomicServer,
+Atomic CLI, the browser WASM build, and the [Flutter SDK](flutter.md).
 
-- A persistent local store (redb on native, OPFS in the browser through WASM) and an in-memory store
-- Agents, `atomic:` identifiers and signing
-- Loro CRDT documents per Resource, with history
-- Commit validation and processing
-- The transport-agnostic [sync engine](sync.md), with WebSocket and Iroh peer transports behind feature flags
-- Full-text search index
+The [crate README](https://github.com/ontola/atomic-server/blob/develop/lib/README.md)
+is the source for the application API boundary, internal extensions, storage
+backends, Cargo features, and compatibility policy. Rustdoc includes that same
+README as the crate overview, alongside the reference for each type and method.
 
-`AtomicNode`, inside `atomic_lib::runtime`, is a convenience facade for selected
-operations, including local saves with outbox delivery, query/search, and commit
-ingestion policies. It is not a separate component boundary.
-
-`Db` remains reachable as `atomic_lib::Db` for compatibility, but is documented
-as internal, along with `AtomicNode::from_db` and `AtomicNode::db`. A public node
-constructor that avoids `Db` is not implemented yet. Existing first-party
-adapters still use these paths; the labels do not change Rust visibility.
-
-Additional schema, interchange, collection, application, and operational helpers
-also remain in the crate as internal extensions. The crate README lists the
-application entry points, internal modules, and existing Cargo features.
-
-The API reference is generated from Rust code comments with Rustdoc. Generate
-it with the database and transport features enabled to include those APIs:
+Generate a local reference with the database and native transports enabled:
 
 ```sh
 cargo doc --locked -p atomic_lib --no-deps --features db,iroh,ws,discovery
 ```
 
-`atomic_lib` is beta; application-facing breaking changes are expected before
-1.0. Internal extensions have no separate application API stability guarantee.
+The [published API reference](https://docs.rs/atomic_lib/latest/atomic_lib/)
+describes the released version, which may differ from the current checkout.
 
-[docs.rs](https://docs.rs/atomic_lib/latest/atomic_lib/)
-
-[repository + issue tracker](https://github.com/ontola/atomic-server).
+[Repository and issue tracker](https://github.com/ontola/atomic-server).
