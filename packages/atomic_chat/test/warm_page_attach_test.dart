@@ -183,6 +183,26 @@ void main() {
   });
 
   testWidgets(
+      'the placeholder\'s breadcrumb starts with the drive, as the page\'s',
+      (tester) async {
+    // The home read the drives: the fake's is called Home.
+    addTearDown(knownDriveNames.clear);
+    await start(tester);
+    await tester.tap(find.text('Plans'));
+    await tester.pump();
+    for (final t in ['Home', '/', 'Plans']) {
+      expect(find.descendant(of: skeleton(), matching: find.text(t)),
+          findsOneWidget,
+          reason: t);
+    }
+    final title = tester.widget<Text>(
+        find.descendant(of: skeleton(), matching: find.text('Plans')));
+    expect(title.style?.fontSize, 13);
+    expect(title.style?.fontWeight, FontWeight.w600);
+    await done(tester);
+  });
+
+  testWidgets(
       'opening takes the attached page as it is, and covers it until '
       'the page shows the resource', (tester) async {
     await start(tester);

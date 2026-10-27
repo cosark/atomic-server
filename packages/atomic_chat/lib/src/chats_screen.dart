@@ -463,6 +463,9 @@ class _ChatsScreenState extends State<ChatsScreen> {
     _drive = drives.any((d) => d.subject == want) ? want : drives.first.subject;
     if (mounted) _shell?.drive.value = _drive;
     // The most recently visited first.
+    for (final d in drives) {
+      if (d.name.isNotEmpty) knownDriveNames[driveKey(d.subject)] = d.name;
+    }
     final sorted = await sortDrivesByRecent(widget.api, drives);
     if (mounted) {
       setState(() => _driveList = sorted);

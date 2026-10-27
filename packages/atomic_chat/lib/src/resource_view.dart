@@ -970,7 +970,11 @@ class _ResourceViewState extends State<ResourceView>
                               setState(() => _skeletonGone = true);
                             }
                           },
-                          child: ResourceSkeleton(title: widget.title),
+                          child: ResourceSkeleton(
+                              title: widget.title,
+                              parent: widget.subject == widget.drive
+                                  ? null
+                                  : knownDriveNames[driveKey(widget.drive)]),
                         ),
                       ),
                     // Next to the list the bar has no room for the resource's
@@ -1022,20 +1026,36 @@ const kEmbedNavBarHeight = 36.0;
 /// own padding.
 const kEmbedNavBarTrailingInset = 4.0;
 
+/// Names of the person's drives by [driveKey], as the home last read them:
+/// the placeholder's breadcrumb starts with the drive before the page knows
+/// the resource's real parents.
+final Map<String, String> knownDriveNames = {};
+
 /// What a resource page shows until its web view shows the resource: the
-/// page's background and its 36 px header row with the resource's title (as
-/// the row it was opened from called it), so the page is there at once and
-/// the web view's own header takes its place.
+/// page's background and its 36 px header row with the breadcrumb as the
+/// page draws it (`BreadCrumbs.tsx`: 13 px, the drive in the muted colour, a
+/// slash, the title in semibold), so the web view's own header takes its
+/// place without a jump. A row tapped in a drive is assumed to be in that
+/// drive: [parent] is its name; a deeper parent shows once the page has read
+/// it.
 class ResourceSkeleton extends StatelessWidget {
   final String title;
+  final String? parent;
 
-  const ResourceSkeleton({super.key, required this.title});
+  const ResourceSkeleton({super.key, required this.title, this.parent});
 
   static const headerHeight = kEmbedNavBarHeight;
 
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
+    // The page's font stack is 'Open Sans', 'Helvetica Neue', … and the app
+    // ships no Open Sans: on iOS the page draws Helvetica Neue, elsewhere the
+    // platform sans, which is the app's own.
+    final family =
+        defaultTargetPlatform == TargetPlatform.iOS ? 'Helvetica Neue' : null;
+    final base = TextStyle(fontSize: 13, height: 1.4, fontFamily: family);
+    final parent = this.parent;
     return ColoredBox(
       key: const Key('resource-skeleton'),
       color: c.bgBody,
@@ -1044,17 +1064,37 @@ class ResourceSkeleton extends StatelessWidget {
         child: Container(
           height: headerHeight,
           width: double.infinity,
+          // The trail's 8 px and the crumb's own 4 px.
           padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: c.bg2)),
           ),
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: c.textPrimary, fontSize: 15),
-          ),
+          child: Row(children: [
+            if (parent != null && parent.isNotEmpty) ...[
+              Flexible(
+                child: Text(parent,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: base.copyWith(color: c.textSecondary)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5.6),
+                child: Text('/',
+                    style: base.copyWith(
+                        color: c.textSecondary.withValues(alpha: 0.6))),
+              ),
+            ],
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: base.copyWith(
+                    color: c.textPrimary, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ]),
         ),
       ),
     );
