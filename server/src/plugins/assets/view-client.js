@@ -476,6 +476,17 @@ export const store = {
     async connect({ platform }) {
       return send('proxyConnect', { platform });
     },
+
+    /** Give up this app's access, keeping the connection for other apps. */
+    async disconnect({ platform }) {
+      const result = await send('proxyDisconnect', { platform });
+
+      for (const key of capabilities.keys()) {
+        if (JSON.parse(key)[0] === platform) capabilities.delete(key);
+      }
+
+      return result;
+    },
   },
 };
 

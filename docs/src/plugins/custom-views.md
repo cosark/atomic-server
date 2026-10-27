@@ -132,6 +132,14 @@ Drive apps follow a stricter rule: they read what the signed-in person can read,
 
 ### Host UI
 
+An app may call `await store.proxy.disconnect({ platform })` to give up its
+own delegation for that platform. The host signs the delegation removals as
+the connection owner. The result is `{ status: 'disconnected', platform,
+connectionIds }`. Shared connections and other apps' delegations remain;
+deleting a connection is a separate action in the connection-management page.
+The generated frame client drops cached capabilities for the platform and
+must ask the host again before its next provider request.
+
 Some things a frame cannot do well on its own: a menu is cut off at the frame's edge, and a share dialog or a confirmation should look like the rest of Atomic. `store.ui` asks the Data Browser to draw them with its own components. Each one names your plugin to the person, so a prompt can never pass as the Data Browser's own. One question is open at a time: asking a new one answers the open one as cancelled.
 
 | Call | Returns |

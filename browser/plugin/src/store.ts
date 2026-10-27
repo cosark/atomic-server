@@ -1,4 +1,5 @@
 import type { Intent } from '@tomic/lib';
+import type { ProxyDisconnectResult } from './types';
 import { HostError, toHostErrorCode } from './hostAbi';
 import { viewRequest, type ViewOperation } from './viewProtocol';
 
@@ -258,6 +259,16 @@ export class ViewStore {
       }
     };
   }
+
+  /** Relinquish this app's access without deleting anyone's connection. */
+  public readonly proxy = {
+    disconnect: ({
+      platform,
+    }: {
+      platform: string;
+    }): Promise<ProxyDisconnectResult> =>
+      this.call('proxyDisconnect', { platform }),
+  };
 
   /**
    * Host UI. The page around this frame draws these with Atomic's own

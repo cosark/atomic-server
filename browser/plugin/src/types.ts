@@ -132,3 +132,10 @@ export interface PageContext {
   /** Subject of the user's agent */
   agent?: string;
 }
+
+/** This app gave up a platform's delegations; the connections still exist. */
+export interface ProxyDisconnectResult {
+  status: 'disconnected';
+  platform: string;
+  connectionIds: string[];
+}

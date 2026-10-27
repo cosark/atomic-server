@@ -32,6 +32,8 @@ export type ViewOperation =
   | 'proxyConnections'
   /** Ask the person, in host UI, to connect a proxy platform for this app. */
   | 'proxyConnect'
+  /** Give up this app's delegation, keeping the shared connection. */
+  | 'proxyDisconnect'
   /** A function another app in the drive exports (`POST /host/call`). */
   | 'call'
   /**
@@ -110,6 +112,7 @@ export function isViewRequest(value: unknown): value is ViewRequest {
       'proxyFetch',
       'proxyConnections',
       'proxyConnect',
+      'proxyDisconnect',
       'call',
       'confirm',
       'toast',
