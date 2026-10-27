@@ -10,6 +10,30 @@ export type BreadCrumbsProps = {
   onNavigate?: (subject: string) => void;
 };
 
+/** What the host app knows of a resource before the page has read it: its
+ * title, and the title and subject of its parent (a row tapped in a drive is
+ * in that drive). The trail shows these until the store has the resource. */
+export type CrumbHint = {
+  title?: string;
+  parent?: string;
+  parentTitle?: string;
+};
+
+const hints = new Map<string, { title?: string; parent?: string }>();
+
+export function setCrumbHint(subject: string, hint?: CrumbHint): void {
+  if (!hint) return;
+
+  hints.set(subject, { title: hint.title, parent: hint.parent });
+
+  if (hint.parent && hint.parentTitle) {
+    hints.set(hint.parent, {
+      ...hints.get(hint.parent),
+      title: hint.parentTitle,
+    });
+  }
+}
+
 /** Stops a (broken) parent cycle from rendering forever. */
 const MAX_DEPTH = 16;
 
@@ -65,8 +89,12 @@ function Crumbs({
   current,
 }: CrumbsProps): JSX.Element | null {
   const resource = useResource(subject, { allowIncomplete: true });
-  const [title] = useTitle(resource);
-  const [parent] = useString(resource, core.properties.parent);
+  const [read] = useTitle(resource);
+  const [readParent] = useString(resource, core.properties.parent);
+  // Not read yet: what the app said it is.
+  const hint = resource.loading || resource.new ? hints.get(subject) : undefined;
+  const title = hint?.title || read;
+  const parent = readParent ?? hint?.parent;
 
   const hidden = !current && (resource.error || resource.isUnauthorized());
 

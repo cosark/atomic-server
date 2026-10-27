@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ThemeProvider, type DefaultTheme } from 'styled-components';
-import { BreadCrumbs } from './BreadCrumbs';
+import { BreadCrumbs, setCrumbHint } from './BreadCrumbs';
 
 const tree: Record<string, { title: string; parent?: string }> = {
   'https://x/drive': { title: 'My drive' },
@@ -15,6 +15,7 @@ vi.mock('@tomic/react', () => ({
   core: { properties: { parent: 'parent' } },
   useResource: (subject: string) => ({
     subject,
+    loading: !tree[subject],
     error: undefined,
     isUnauthorized: () => false,
   }),
@@ -62,4 +63,20 @@ it('shows only the name for a drive', () => {
   );
 
   expect(container.textContent).toBe('My drive');
+});
+
+it('shows the titles the app passed until the resource is read', () => {
+  setCrumbHint('https://x/new', {
+    title: 'Plans',
+    parent: 'https://x/drive',
+    parentTitle: 'Drive as the app calls it',
+  });
+  const { container } = render(
+    <ThemeProvider theme={theme}>
+      <BreadCrumbs subject='https://x/new' />
+    </ThemeProvider>,
+  );
+
+  // The drive is read already: its own title wins over the app's.
+  expect(container.textContent).toBe('My drive/Plans');
 });

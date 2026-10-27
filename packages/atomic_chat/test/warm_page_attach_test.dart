@@ -183,22 +183,27 @@ void main() {
   });
 
   testWidgets(
-      'the placeholder\'s breadcrumb starts with the drive, as the page\'s',
+      'the page draws the header from its first frame, with the titles the '
+      'app knows; the placeholder then covers only what is under it',
       (tester) async {
     // The home read the drives: the fake's is called Home.
     addTearDown(knownDriveNames.clear);
     await start(tester);
+    final page = pages.single;
     await tester.tap(find.text('Plans'));
     await tester.pump();
-    for (final t in ['Home', '/', 'Plans']) {
-      expect(find.descendant(of: skeleton(), matching: find.text(t)),
-          findsOneWidget,
-          reason: t);
-    }
-    final title = tester.widget<Text>(
-        find.descendant(of: skeleton(), matching: find.text('Plans')));
-    expect(title.style?.fontSize, 13);
-    expect(title.style?.fontWeight, FontWeight.w600);
+    final open = page.scripts.lastWhere((s) => s.contains('e.open'));
+    expect(open, contains('"did:ad:plans",{"title":"Plans",'
+        '"parent":"did:ad:drive","parentTitle":"Home"}'));
+    // No header of the app's own: the placeholder is only the background.
+    expect(find.descendant(of: skeleton(), matching: find.byType(Text)),
+        findsNothing);
+    expect(tester.getRect(skeleton()).top, 0);
+    page.handler!(jsonEncode({'method': 'header', 'subject': 'did:ad:plans'}));
+    await tester.pump();
+    final pane = tester.getRect(find.byType(ResourceView));
+    expect(tester.getRect(skeleton()).top - pane.top,
+        greaterThanOrEqualTo(kEmbedNavBarHeight));
     await done(tester);
   });
 
@@ -211,11 +216,9 @@ void main() {
 
     await tester.tap(find.text('Plans'));
     await tester.pump();
-    // The first frame of the page: the placeholder with the row's title.
+    // The first frame of the page: the placeholder (the page's background).
     // The web view is still in the slot (attached), and only in it.
     expect(skeleton(), findsOneWidget);
-    expect(find.descendant(of: skeleton(), matching: find.text('Plans')),
-        findsOneWidget);
     expect(find.text('web view 0'), findsOneWidget);
     // The next frame it is under the placeholder: the same one (not made
     // again), at the same size.

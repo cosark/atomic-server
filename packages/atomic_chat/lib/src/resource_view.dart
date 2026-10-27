@@ -164,6 +164,22 @@ class _ResourceViewState extends State<ResourceView>
 
   /// The placeholder is gone (faded out).
   bool _skeletonGone = true;
+
+  /// The page painted its own header for this resource: the placeholder
+  /// covers only what is under it from then on.
+  bool _headerShown = false;
+
+  /// What the app knows of the resource before the page has read it, for the
+  /// page's breadcrumb (`setCrumbHint` in `BreadCrumbs.tsx`): the row's title
+  /// and the drive it was tapped in.
+  Map<String, String> get _crumbHint => {
+        if (widget.title.isNotEmpty) 'title': widget.title,
+        if (widget.drive.isNotEmpty && widget.subject != widget.drive) ...{
+          'parent': widget.drive,
+          if (knownDriveNames[driveKey(widget.drive)] case final name?)
+            'parentTitle': name,
+        },
+      };
   Timer? _revealCap;
 
   @override
@@ -229,8 +245,10 @@ class _ResourceViewState extends State<ResourceView>
                 '&menu=$_menuId&x=${_menuPoint().dx}&y=${_menuPoint().dy}'
           else if (widget.path != null)
             'path': widget.path!
-          else
+          else ...{
             'subject': widget.subject,
+            'hint': jsonEncode(_crumbHint),
+          },
           // The page's first paint is in the app's light or dark mode.
           'scheme': scheme,
           'sidebarIcons': AppSidebarIcons.queryValue,
@@ -329,8 +347,9 @@ class _ResourceViewState extends State<ResourceView>
           ahead == null ? '' : 'e.changed&&e.changed([${jsonEncode(ahead)}]);';
       // `open` replaces the page's blank first entry, so back leaves the
       // resource; an older bundle only has `show`.
+      final hint = jsonEncode(_crumbHint);
       unawaited(page.runJavaScript('(function(e){if(!e)return;$reload'
-          '(e.open||e.show)($subject)})(window.atomicEmbed)'));
+          '(e.open||e.show)($subject,$hint)})(window.atomicEmbed)'));
       _watchPainted();
       _revealCap?.cancel();
       _revealCap = Timer(ResourceView.revealWarm, _reveal);
@@ -735,6 +754,12 @@ class _ResourceViewState extends State<ResourceView>
       _horizontal = request['mode'] == 'horizontal';
       return;
     }
+    if (request['method'] == 'header') {
+      if (request['subject'] == widget.subject && !_headerShown && mounted) {
+        setState(() => _headerShown = true);
+      }
+      return;
+    }
     if (request['method'] == 'revealed') {
       final why = request['why'];
       if (why is String && why.isNotEmpty) {
@@ -962,6 +987,9 @@ class _ResourceViewState extends State<ResourceView>
                     if (page != null && _inTree) page.build(),
                     if (!_skeletonGone)
                       Positioned.fill(
+                        // The page's header is the page's own: once it is
+                        // painted, only what is under it stays covered.
+                        top: _headerShown ? kEmbedNavBarHeight : 0,
                         child: AnimatedOpacity(
                           opacity: _revealed ? 0 : 1,
                           duration: ResourceView.revealFade,
@@ -970,11 +998,7 @@ class _ResourceViewState extends State<ResourceView>
                               setState(() => _skeletonGone = true);
                             }
                           },
-                          child: ResourceSkeleton(
-                              title: widget.title,
-                              parent: widget.subject == widget.drive
-                                  ? null
-                                  : knownDriveNames[driveKey(widget.drive)]),
+                          child: const ResourceSkeleton(),
                         ),
                       ),
                     // Next to the list the bar has no room for the resource's
@@ -1027,78 +1051,26 @@ const kEmbedNavBarHeight = 36.0;
 const kEmbedNavBarTrailingInset = 4.0;
 
 /// Names of the person's drives by [driveKey], as the home last read them:
-/// the placeholder's breadcrumb starts with the drive before the page knows
-/// the resource's real parents.
+/// the page's breadcrumb starts with the drive before it has read the drive.
 final Map<String, String> knownDriveNames = {};
 
-/// What a resource page shows until its web view shows the resource: the
-/// page's background and its 36 px header row with the breadcrumb as the
-/// page draws it (`BreadCrumbs.tsx`: 13 px, the drive in the muted colour, a
-/// slash, the title in semibold), so the web view's own header takes its
-/// place without a jump. A row tapped in a drive is assumed to be in that
-/// drive: [parent] is its name; a deeper parent shows once the page has read
-/// it.
+/// What covers a resource page until its web view shows the resource: the
+/// page's own background (white, or black in dark mode), nothing else. The
+/// header is never drawn here: the page draws it from its first frame, with
+/// the titles the app passed ([_ResourceViewState._crumbHint]), and from then
+/// on this covers only the part under it.
 class ResourceSkeleton extends StatelessWidget {
-  final String title;
-  final String? parent;
-
-  const ResourceSkeleton({super.key, required this.title, this.parent});
+  const ResourceSkeleton({super.key});
 
   static const headerHeight = kEmbedNavBarHeight;
 
   @override
-  Widget build(BuildContext context) {
-    final c = context.appColors;
-    // The page's font stack is 'Open Sans', 'Helvetica Neue', … and the app
-    // ships no Open Sans: on iOS the page draws Helvetica Neue, elsewhere the
-    // platform sans, which is the app's own.
-    final family =
-        defaultTargetPlatform == TargetPlatform.iOS ? 'Helvetica Neue' : null;
-    final base = TextStyle(fontSize: 13, height: 1.4, fontFamily: family);
-    final parent = this.parent;
-    return ColoredBox(
-      key: const Key('resource-skeleton'),
-      color: c.bgBody,
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: Container(
-          height: headerHeight,
-          width: double.infinity,
-          // The trail's 8 px and the crumb's own 4 px.
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.centerLeft,
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: c.bg2)),
-          ),
-          child: Row(children: [
-            if (parent != null && parent.isNotEmpty) ...[
-              Flexible(
-                child: Text(parent,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: base.copyWith(color: c.textSecondary)),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5.6),
-                child: Text('/',
-                    style: base.copyWith(
-                        color: c.textSecondary.withValues(alpha: 0.6))),
-              ),
-            ],
-            Flexible(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: base.copyWith(
-                    color: c.textPrimary, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ColoredBox(
+        key: const Key('resource-skeleton'),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.black
+            : Colors.white,
+      );
 }
 
 /// The drive [subject] is in, from its `drive` property (a drive is its own),

@@ -7,9 +7,13 @@
  * the app (a desktop browser, for development) a mock host answers instead.
  *
  * Host API, on `window.atomicEmbed`:
- *   show(subject)     render this resource
- *   open(subject)     same, replacing the current page in the history (a
+ *   show(subject, hint?)  render this resource
+ *   open(subject, hint?)  same, replacing the current page in the history (a
  *                     pre-loaded page: back then leaves the resource)
+ *                     `hint`: the titles the app already knows (the row's
+ *                     title, the drive it was tapped in), so the header is
+ *                     right from its first frame; the page posts `header`
+ *                     once that frame is painted
  *   changed(subjects) these resources changed in the host's store
  *   flush(leaving?)   hand every pending edit to the host; resolves when done
  *   startWelcome(id, personalDrive)  the app's first run: build the Welcome
@@ -44,7 +48,11 @@ import {
 import { Providers } from '../Providers';
 import { ResourceContextMenu } from '../components/ResourceContextMenu';
 import ResourcePage from '../views/ResourcePage';
-import { BreadCrumbs } from '../components/BreadCrumbs';
+import {
+  BreadCrumbs,
+  setCrumbHint,
+  type CrumbHint,
+} from '../components/BreadCrumbs';
 import { CalculatedPageHeight } from '../globalCssVars';
 import { goToFirstEntry } from './resetHistory';
 import { actionPages } from './actionPages';
@@ -139,8 +147,8 @@ declare global {
     /** Flutter's `JavaScriptChannel`, when the page runs inside the app. */
     AtomicFlutter?: { postMessage(message: string): void };
     atomicEmbed?: {
-      show(subject: string): void;
-      open(subject: string): void;
+      show(subject: string, hint?: CrumbHint): void;
+      open(subject: string, hint?: CrumbHint): void;
       changed(subjects: string[]): void;
       /** `anchor`: the app's "more" button (right edge, top), in page px. */
       openMenu(anchor?: { x: number; y: number }): void;
@@ -321,7 +329,24 @@ const showRoute = createRoute({
       };
     }, [subject]);
 
-    if (!subject || driveOf !== subject) {
+    // The header is the page's from its first frame (the app covers only
+    // what is under it until the resource shows): the app is told once it is
+    // painted.
+    useEffect(() => {
+      if (menu || !subject) return;
+
+      let frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() =>
+          window.AtomicFlutter?.postMessage(
+            JSON.stringify({ method: 'header', subject }),
+          ),
+        );
+      });
+
+      return () => cancelAnimationFrame(frame);
+    }, [subject, menu]);
+
+    if (!subject || (menu && driveOf !== subject)) {
       return null;
     }
 
@@ -349,7 +374,9 @@ const showRoute = createRoute({
           />
         </EmbedHeader>
         <BelowHeader>
-          <ResourcePage key={subject} subject={subject} />
+          {driveOf === subject && (
+            <ResourcePage key={subject} subject={subject} />
+          )}
         </BelowHeader>
         {menuId > 0 && (
           <ResourceContextMenu
@@ -376,6 +403,18 @@ const actionRoutes = actionPages.map(([path, source]) =>
   }),
 );
 
+// The titles the app knows of the first resource (`hint`, as `open` gets
+// them), so its header is right from the first frame.
+try {
+  const params = new URLSearchParams(location.search);
+  const first = params.get('subject');
+  const hint = params.get('hint');
+
+  if (first && hint) setCrumbHint(first, JSON.parse(hint) as CrumbHint);
+} catch {
+  // A hint that does not parse only costs the first frame's titles.
+}
+
 const history = createMemoryHistory({
   initialEntries: [
     // The app opens a page of its own (notifications, settings) with `path`.
@@ -392,10 +431,12 @@ const router = createRouter({
 });
 
 window.atomicEmbed = {
-  show(subject) {
+  show(subject, hint) {
+    setCrumbHint(subject, hint);
     void router.navigate({ to: '/app/show', search: { subject } });
   },
-  open(subject) {
+  open(subject, hint) {
+    setCrumbHint(subject, hint);
     // The warm-up showed other resources here (`show`); none of them is a
     // place back goes to.
     goToFirstEntry(history);
