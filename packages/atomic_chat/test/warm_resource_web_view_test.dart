@@ -285,7 +285,8 @@ void main() {
   });
 
   group('ResourceView with a spare', () {
-    Future<void> openView(WidgetTester tester, ShellController shell) async {
+    Future<void> openView(WidgetTester tester, ShellController shell,
+        {Rect? menuAnchor}) async {
       await tester.pumpWidget(MaterialApp(
         theme: ThemeData(extensions: const [AppColors.light]),
         home: ShellScope(
@@ -297,8 +298,11 @@ void main() {
       navigator.push(MaterialPageRoute<void>(
         builder: (_) => ShellScope(
           controller: shell,
-          child: const ResourceView(
-              api: _Api(), drive: 'd', subject: 'https://x/s'),
+          child: ResourceView(
+              api: const _Api(),
+              drive: 'd',
+              subject: 'https://x/s',
+              menuAnchor: menuAnchor),
         ),
       ));
       await tester.pump();
@@ -308,6 +312,37 @@ void main() {
     Future<void> closeAll(WidgetTester tester) async {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
+    }
+
+    /// Closes the open view with its page answering the flush, as it does.
+    Future<void> leave(WidgetTester tester, FakeWarmPage page,
+        {bool answer = true}) async {
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      unawaited(navigator.maybePop());
+      await tester.pump();
+      if (answer) {
+        final id = RegExp(r'flush:(\d+)')
+            .firstMatch(page.scripts.lastWhere((s) => s.contains('flush:')))!
+            .group(1);
+        page.handler!(
+            jsonEncode({'method': 'flushed', 'flush': int.parse(id!)}));
+      }
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    /// A pool with a ready spare, open in a view: the taken page is
+    /// `pages.first` and the next spare `pages.last` (loading).
+    Future<ShellController> openWithSpare(WidgetTester tester,
+        {Rect? menuAnchor}) async {
+      pool = makePool()..warmUp();
+      await tester.pump();
+      pages.single.becomeReady();
+      await tester.pump();
+      final shell = ShellController(drive: 'd')..warm = pool;
+      await openView(tester, shell, menuAnchor: menuAnchor);
+      expect(pages, hasLength(2));
+      return shell;
     }
 
     setUp(() {
@@ -392,7 +427,7 @@ void main() {
       await closeAll(tester);
     });
 
-    testWidgets('leaving releases the taken page, not the spare',
+    testWidgets('leaving gives the taken page back over a loading spare',
         (tester) async {
       pool = makePool()..warmUp();
       await tester.pump();
@@ -415,8 +450,98 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
 
       expect(find.text('home'), findsOneWidget);
+      expect(taken.released, isFalse, reason: 'it is the spare now');
+      expect(pool.attached, same(taken));
+      expect(pages.last.released, isTrue, reason: 'the load is dropped');
+    });
+
+    testWidgets('a closed page becomes the spare, and the next open is warm',
+        (tester) async {
+      await openWithSpare(tester);
+      final taken = pages.first;
+      final loading = pages.last;
+
+      await leave(tester, taken);
+
+      expect(taken.released, isFalse);
+      expect(loading.released, isTrue,
+          reason: 'the load that was not ready is dropped');
+      expect(pool.attached, same(taken));
+      expect(taken.scripts.any((s) => s.contains('e.show("")')), isTrue,
+          reason: 'blank until it is taken');
+      expect(WarmResourceWebView.shownAhead[taken], 'https://x/s',
+          reason: 'the taker reads it again');
+      // Its calls are the pool's again.
+      taken.handler!(jsonEncode({'id': 3, 'method': 'x', 'args': []}));
+      await tester.pump();
+      expect(taken.scripts, contains(r'window.__atomicReply(3,true,"\"x\"")'));
+
+      final built = pages.length;
+      expect(pool.take(), same(taken));
+      expect(pages, hasLength(built + 1),
+          reason: 'only the next spare is made, none for the open');
+    });
+
+    testWidgets('with a ready spare already there the closed page is released',
+        (tester) async {
+      await openWithSpare(tester);
+      final taken = pages.first;
+      final spare = pages.last..becomeReady();
+      await tester.pump();
+
+      await leave(tester, taken);
+
       expect(taken.released, isTrue);
-      expect(pages.last.released, isFalse);
+      expect(spare.released, isFalse);
+      expect(pool.attached, same(spare));
+    });
+
+    test('a ready page replaces a spare that is still loading', () async {
+      pool = makePool()..warmUp();
+      await pumpEventQueue();
+      final loading = pages.single;
+      final back = FakeWarmPage((_) {})..becomeReady();
+
+      expect(pool.giveBack(back), isTrue);
+
+      expect(loading.released, isTrue);
+      expect(pool.take(), same(back));
+      // The load that was dropped does not come back as a second spare.
+      loading.becomeReady();
+      await pumpEventQueue();
+      expect(pool.attached, isNull);
+    });
+
+    test('a page that is not ready, or a pool that is gone, takes nothing',
+        () async {
+      pool = makePool();
+      expect(pool.giveBack(FakeWarmPage((_) {})), isFalse);
+      final back = FakeWarmPage((_) {})..becomeReady();
+      pool.dispose();
+      expect(pool.giveBack(back), isFalse);
+      expect(back.released, isFalse, reason: 'the caller releases');
+    });
+
+    testWidgets('a page whose flush got no answer is not reused',
+        (tester) async {
+      await openWithSpare(tester);
+      final taken = pages.first;
+
+      await leave(tester, taken, answer: false);
+
+      expect(taken.released, isTrue);
+      expect(pool.attached, isNull);
+    });
+
+    testWidgets('a menu-only page is not reused', (tester) async {
+      await openWithSpare(tester,
+          menuAnchor: const Rect.fromLTWH(10, 10, 20, 20));
+      final taken = pages.first;
+
+      await leave(tester, taken);
+
+      expect(taken.released, isTrue);
+      expect(pool.attached, isNot(same(taken)));
     });
 
     testWidgets('without a ready spare it opens the cold way', (tester) async {

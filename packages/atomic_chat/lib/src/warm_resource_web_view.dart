@@ -403,6 +403,41 @@ class WarmResourceWebView with WidgetsBindingObserver, ChangeNotifier {
     return page;
   }
 
+  /// Takes back a page whose view closed, as the spare, instead of the
+  /// caller destroying it: the next open then finds a ready page even when
+  /// the spare taken before it is still loading. Returns false when the page
+  /// is not accepted (the caller releases it): it is not ready, the pool is
+  /// gone, or a ready spare exists already (never more than one, memory).
+  /// [subject] is what the page showed, which the taker reloads.
+  ///
+  /// The caller's widget has let go of the page by now (its view is
+  /// disposed), so it moves into the slot after this frame, the way
+  /// [take] hands it over in reverse. The web view is attached again there:
+  /// that costs the attach, not a page load.
+  bool giveBack(WarmPage page, {String? subject}) {
+    if (_disposed || !page.isReady) return false;
+    if (isReady) {
+      debugPrint('[warm] page given back, spare already ready: released');
+      return false;
+    }
+    // A spare still loading (or being made) loses to one that is ready now.
+    _generation++;
+    _starting = false;
+    _rewarm?.cancel();
+    _warm?.release();
+    // The calls below reach the page in this order, before any taker's.
+    page.onMessage = (m) => _answer(page, m);
+    page.onLoaded = null;
+    shownAhead[page] = subject;
+    unawaited(page
+        .runJavaScript('(function(e){if(e)e.show("")})(window.atomicEmbed)'));
+    unawaited(_tellScheme(page));
+    _warm = page;
+    debugPrint('[warm] page given back as the spare');
+    _changed();
+    return true;
+  }
+
   void _scheduleRewarm() {
     _rewarm?.cancel();
     if (rewarmDelay == Duration.zero) {

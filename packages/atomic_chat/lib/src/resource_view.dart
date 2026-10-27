@@ -147,6 +147,9 @@ class _ResourceViewState extends State<ResourceView>
   /// not leaving by hand, so following goes on.
   bool _replacing = false;
   int _flushes = 0;
+
+  /// A flush got no answer: the page may hold edits, so it is not reused.
+  bool _flushTimedOut = false;
   final _flushed = <int, Completer<void>>{};
 
   /// Pages that were closed while handing over their last edits: kept here
@@ -643,6 +646,19 @@ class _ResourceViewState extends State<ResourceView>
   /// Drops the web view a little later: the store may still be answering the
   /// page's last calls.
   void _release(EmbedPage page) {
+    // A page that loaded fine and handed over its edits goes back to the pool
+    // as its spare: the next open of a resource is then warm.
+    final pool = _pool;
+    if (pool != null &&
+        page is WarmPage &&
+        _error == null &&
+        !_menuOnly &&
+        widget.path == null &&
+        widget.subject.isNotEmpty &&
+        !_flushTimedOut &&
+        pool.giveBack(page, subject: widget.subject)) {
+      return;
+    }
     final releasable = page is ReleasablePage ? page as ReleasablePage : null;
     if (releasable == null) return;
     Future<void>.delayed(ResourceView.releaseDelay, releasable.release);
@@ -669,6 +685,7 @@ class _ResourceViewState extends State<ResourceView>
     });
     return done.future.timeout(ResourceView.flushTimeout, onTimeout: () {
       debugPrint('[embed] flush $id: no answer, leaving anyway');
+      _flushTimedOut = true;
     }).whenComplete(() => _flushed.remove(id));
   }
 
