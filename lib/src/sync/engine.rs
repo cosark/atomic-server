@@ -1791,6 +1791,28 @@ pub(crate) fn admit_unknown_drive(
     }
 }
 
+/// Resolve a parent's drive from accepted state in this frame before storage.
+async fn staged_parent_drive(
+    store: &Db,
+    parent: &crate::Subject,
+    staged: &[(crate::Resource, Option<Vec<u8>>)],
+    by_subject: &std::collections::HashMap<String, usize>,
+) -> Option<String> {
+    let stored;
+    let resource = if let Some(index) = by_subject.get(&parent.pure_id()) {
+        &staged[*index].0
+    } else {
+        stored = store.get_resource(parent).await.ok()?;
+        &stored
+    };
+    Some(
+        resource
+            .get(crate::urls::DRIVE_PROP)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|_| parent.to_string()),
+    )
+}
+
 /// Import resources from a SYNC_PUSH message into the local store.
 ///
 /// `for_agent` is the identity the sending peer proved. `trust_owned` is true
@@ -1936,20 +1958,9 @@ pub async fn import_sync_push(
                 drive.to_string()
             } else if let Ok(parent) = existing.get(crate::urls::PARENT) {
                 let parent_subject = crate::Subject::from(parent.to_string());
-                if let Some(parent_index) = staged_by_subject.get(&parent_subject.pure_id()) {
-                    staged[*parent_index]
-                        .0
-                        .get(crate::urls::DRIVE_PROP)
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|_| parent_subject.to_string())
-                } else if let Ok(parent_resource) = store.get_resource(&parent_subject).await {
-                    parent_resource
-                        .get(crate::urls::DRIVE_PROP)
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|_| parent_subject.to_string())
-                } else {
-                    existing.get_subject().to_string()
-                }
+                staged_parent_drive(store, &parent_subject, &staged, &staged_by_subject)
+                    .await
+                    .unwrap_or_else(|| existing.get_subject().to_string())
             } else {
                 existing.get_subject().to_string()
             };
@@ -2040,17 +2051,10 @@ pub async fn import_sync_push(
                 .unwrap_or_else(|_| resource.get_subject().to_string());
             if let Ok(parent_val) = resource.get(crate::urls::PARENT) {
                 let parent_subject = crate::Subject::from(parent_val.to_string());
-                if let Some(parent_index) = staged_by_subject.get(&parent_subject.pure_id()) {
-                    claimed = staged[*parent_index]
-                        .0
-                        .get(crate::urls::DRIVE_PROP)
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|_| parent_subject.to_string());
-                } else if let Ok(parent_res) = store.get_resource(&parent_subject).await {
-                    claimed = parent_res
-                        .get(crate::urls::DRIVE_PROP)
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|_| parent_subject.to_string());
+                if let Some(drive) =
+                    staged_parent_drive(store, &parent_subject, &staged, &staged_by_subject).await
+                {
+                    claimed = drive;
                 }
             }
             if normalize(&claimed) != admitted_drive {
