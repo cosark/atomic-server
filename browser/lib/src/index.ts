@@ -54,6 +54,7 @@ export * from './genesis.js';
 export * from './commit.js';
 export * from './error.js';
 export * from './withDeadline.js';
+export { isLoopbackHost } from './loopback.js';
 export * from './pkarr.js';
 export * from './datatypes.js';
 export * from './class-constraints.js';

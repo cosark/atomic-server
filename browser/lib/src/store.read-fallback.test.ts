@@ -56,6 +56,18 @@ afterEach(() => {
 });
 
 describe('bounded WebSocket reads', () => {
+  it('lets an adapter tune the WebSocket deadline', async () => {
+    const { store, http } = await fixture();
+    vi.spyOn(store, 'webSocketReadDeadlineMs').mockReturnValue(75);
+    vi.useFakeTimers();
+    const read = store.fetchResourceFromServer(SUBJECT);
+    await vi.advanceTimersByTimeAsync(74);
+    expect(http).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(http).toHaveBeenCalledOnce();
+    await read;
+  });
+
   it('uses the authenticated HTTP path when an OPEN local socket stops answering', async () => {
     const { store, agent, http } = await fixture();
     vi.useFakeTimers();

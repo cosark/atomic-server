@@ -74,6 +74,7 @@ import { bytesToHex, hexToBytes, type JSONValue } from './value.js';
 import { WSClient } from './websockets.js';
 import { LoroLoader } from './loro-loader.js';
 import { withDeadline } from './withDeadline.js';
+import { isLoopbackHost } from './loopback.js';
 
 /** How long a connected store waits on its local database before asking the server. */
 const LOCAL_READ_DEADLINE_MS = 1_000;
@@ -4857,22 +4858,14 @@ export class Store {
       // a half-open connection used to hold every table query for ten seconds.
       // Give a healthy local socket one round trip, then use the existing
       // authenticated HTTP read path. Remote nodes get a normal WAN budget.
-      const local = ['localhost', '127.0.0.1', '[::1]'].includes(
-        new URL(
-          /^https?:/.test(fetchSubject) ? fetchSubject : this.getServerUrl(),
-        ).hostname,
-      );
       const controller = new AbortController();
       let expired = false;
-      const timer = setTimeout(
-        () => {
-          expired = true;
-          controller.abort(
-            new RequestCancelledError('WebSocket read yielded to HTTP'),
-          );
-        },
-        local ? 50 : 1000,
-      );
+      const timer = setTimeout(() => {
+        expired = true;
+        controller.abort(
+          new RequestCancelledError('WebSocket read yielded to HTTP'),
+        );
+      }, this.webSocketReadDeadlineMs(fetchSubject));
 
       try {
         await ws.fetch(fetchSubject, { signal: controller.signal });
@@ -6013,6 +6006,16 @@ export class Store {
     return this._driveSyncInProgress
       ? LOCAL_READ_DEADLINE_DURING_SYNC_MS
       : LOCAL_READ_DEADLINE_MS;
+  }
+
+  /** How long an individual WebSocket GET waits before yielding to HTTP.
+   * Override alongside localReadDeadlineMs when adapting read budgets. */
+  public webSocketReadDeadlineMs(subject: string): number {
+    const hostname = new URL(
+      /^https?:/.test(subject) ? subject : this.getServerUrl(),
+    ).hostname;
+
+    return isLoopbackHost(hostname) ? 50 : 1_000;
   }
 
   /** True once a drive sync has finished FOR THIS DRIVE in this session.
