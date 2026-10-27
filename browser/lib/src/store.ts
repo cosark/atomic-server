@@ -122,7 +122,11 @@ import type {
   ClientDbQueryOpts,
   ClientDbQueryResult,
 } from './client-db.js';
-import { DrivePresenceManager } from './presence.js';
+import {
+  DrivePresenceManager,
+  type LocalPresenceListener,
+  type PresenceEntry,
+} from './presence.js';
 import { perfMark, perfSpan } from './perf-trace.js';
 import {
   LocalOutbox,
@@ -700,6 +704,7 @@ export class Store {
   /** One presence manager per drive; managers remove themselves when
    *  their last subscriber leaves. */
   private presenceManagers: Map<string, DrivePresenceManager> = new Map();
+  private localPresenceListeners = new Set<LocalPresenceListener>();
   /** This tab's presence session, shared by every channel it announces in. */
   public readonly presenceSessionId: string = crypto.randomUUID();
   private injectedFetch: Fetch;
@@ -7244,6 +7249,34 @@ export class Store {
         }
       },
     );
+  }
+
+  /**
+   * Hear every change to this session's own presence entry on any drive, as
+   * it is written (before it reaches a transport). For a host that carries the
+   * entry itself instead of the websocket (the Flutter embed). `undefined`
+   * means the entry was withdrawn.
+   */
+  public onLocalPresence(callback: LocalPresenceListener): () => void {
+    this.localPresenceListeners.add(callback);
+
+    return () => {
+      this.localPresenceListeners.delete(callback);
+    };
+  }
+
+  /** @internal A presence manager wrote its local entry. */
+  public __localPresenceChanged(
+    drive: string,
+    entry: PresenceEntry | undefined,
+  ): void {
+    for (const listener of this.localPresenceListeners) {
+      try {
+        listener(drive, entry);
+      } catch (e) {
+        console.error('[Presence] local listener threw:', e);
+      }
+    }
   }
 
   /** Broadcast raw presence bytes (Loro EphemeralStore update) to a
