@@ -9,10 +9,10 @@ import 'package:atomic_flutter/atomic_flutter.dart'
 /// per tree level) and is [iconSlot] wide, titles start [gap] after it,
 /// chevrons and trailing parts end [hPad] before the right edge.
 ///
-/// [touch] is today's layout for fingers (phones and tablets: the list tiles
-/// keep their own sizes, these values describe them for reference); [compact]
+/// [touch] is the layout for fingers (phones and tablets: the list tiles are
+/// driven from these values); [compact]
 /// is the desktop one. [SidebarMetricsScope] picks one for everything below it;
-/// outside a scope [SidebarMetrics.of] is [touch], so rows in other lists
+/// outside a scope [SidebarMetrics.of] is [list], so rows in other lists
 /// (search, the attachment sheet, full-page lists) never change.
 class SidebarMetrics {
   final bool compact;
@@ -65,6 +65,26 @@ class SidebarMetrics {
   });
 
   static const touch = SidebarMetrics(
+    compact: false,
+    rowHeight: 56,
+    iconSize: 20,
+    iconSlot: 24,
+    gap: 10,
+    textSize: 15,
+    hPad: 20,
+    indent: 16,
+    chevronSize: 22,
+    chevronSlot: 40,
+    headerHeight: 48,
+    headerTextSize: 14,
+    driveHeaderHeight: 40,
+    driveAvatar: 28,
+    driveNameSize: 20,
+  );
+
+  /// The 16 dp / 32 dp grid of lists outside the sidebar (search, sheets,
+  /// full-page lists): what [of] returns outside a [SidebarMetricsScope].
+  static const list = SidebarMetrics(
     compact: false,
     rowHeight: 56,
     iconSize: 20,
@@ -126,7 +146,7 @@ class SidebarMetrics {
 
   static SidebarMetrics of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_MetricsScope>()?.metrics ??
-      SidebarMetrics.touch;
+      SidebarMetrics.list;
 }
 
 /// Gives the rows below it the density that suits the platform and pointer.

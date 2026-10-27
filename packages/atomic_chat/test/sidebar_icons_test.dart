@@ -1,4 +1,5 @@
 import 'package:atomic_chat/atomic_chat.dart';
+import 'package:atomic_chat/src/sidebar_metrics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,7 +39,7 @@ void main() {
     expect(tester.getTopLeft(find.text('Plan').first).dx, greaterThan(16));
   });
 
-  testWidgets('off: no RowLeading on Home and the text starts at 16 dp',
+  testWidgets('off: no RowLeading on Home and the text starts at the row inset',
       (tester) async {
     AppSidebarIcons.show.value = false;
     await tester
@@ -46,7 +47,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Plan'), findsOneWidget);
     expect(find.byType(RowLeading), findsNothing);
-    expect(tester.getTopLeft(find.text('Plan').first).dx, 16);
+    expect(tester.getTopLeft(find.text('Plan').first).dx, SidebarMetrics.touch.hPad);
     expect(tester.getSize(find.widgetWithText(ListTile, 'Plan')).height,
         greaterThanOrEqualTo(44));
 

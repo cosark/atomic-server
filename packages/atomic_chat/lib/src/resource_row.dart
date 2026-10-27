@@ -142,11 +142,11 @@ class ResourceRow extends StatelessWidget {
   bool get _hasEmoji => emoji != null && emoji!.isNotEmpty;
 
   bool _hasLeading(BuildContext context) =>
-      // "Show icons in the sidebar" off: text only, starting at the 16 dp inset.
+      // "Show icons in the sidebar" off: text only, starting at the row inset.
       SidebarIconsScope.of(context) &&
       (icon != null || _hasEmoji || (image != null && !image!.isEmpty));
 
-  /// The leading slot is 32 dp for every kind of row, so rows line up and
+  /// The leading slot is [SidebarMetrics.iconSlot] wide for every kind of row, so rows line up and
   /// their text starts at the same x.
   Widget? _leading(BuildContext context) {
     if (!_hasLeading(context)) return null;
@@ -162,7 +162,7 @@ class ResourceRow extends StatelessWidget {
             emoji: _hasEmoji ? emoji : img.emoji);
     final m = SidebarMetrics.of(context);
     return RowLeading(
-      size: m.compact ? m.iconSlot : 32,
+      size: m.iconSlot,
       iconSize: m.compact ? m.iconSize : 20,
       cornerRadius: m.compact ? 4 : 8,
       image: source,
@@ -199,6 +199,10 @@ class ResourceRow extends StatelessWidget {
       );
     }
     return ListTile(
+      contentPadding:
+          EdgeInsetsDirectional.only(start: m.hPad, end: m.hPad),
+      minLeadingWidth: m.iconSlot,
+      horizontalTitleGap: m.gap,
       leading: _leading(context),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       titleTextStyle: TextStyle(

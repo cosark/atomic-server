@@ -835,7 +835,7 @@ void main() {
       lefts['Favorites row'] = leadingLeft('Starred doc');
       lefts['Favorites heading'] = titleLeft('favorites', 'Favorites');
       for (final e in lefts.entries) {
-        expect(e.value, closeTo(16, 0.5), reason: '${e.key}: $lefts');
+        expect(e.value, closeTo(SidebarMetrics.touch.hPad, 0.5), reason: '${e.key}: $lefts');
       }
       // The document icon has a wider glyph inset than the folder's: its ink
       // still starts at the same x.
@@ -923,7 +923,7 @@ void main() {
         expect(tree.right, closeTo(panel.right, 0.5));
         expect(tree.size, panel.size);
         // And that is the sidebar's inset from the right edge.
-        final inset = compact ? 16.0 : 16.0;
+        final inset = compact ? 16.0 : SidebarMetrics.touch.hPad;
         expect(
             panel.right,
             closeTo(tester.getSize(find.byType(Scaffold).first).width - inset,

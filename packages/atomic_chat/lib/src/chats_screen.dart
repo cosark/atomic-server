@@ -1501,7 +1501,7 @@ class _SectionState<T> extends State<_Section<T>>
         onLongPress: fold.onHold,
         child: Padding(
           padding: EdgeInsets.symmetric(
-              horizontal: compact ? m.hPad : 16, vertical: compact ? 2 : 0),
+              horizontal: m.hPad, vertical: compact ? 2 : 0),
           child: content,
         ),
       ),
@@ -2094,14 +2094,17 @@ class _Heading extends StatelessWidget {
   const _Heading(this.text, this.c);
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: Text(text,
-            style: TextStyle(
-                color: c.textSecondary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600)),
-      );
+  Widget build(BuildContext context) {
+    final hPad = SidebarMetrics.of(context).hPad;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 4),
+      child: Text(text,
+          style: TextStyle(
+              color: c.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600)),
+    );
+  }
 }
 
 /// A section still being read: a small spinner where the first row (or the
@@ -2113,7 +2116,7 @@ class _Loading extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = SidebarMetrics.of(context);
     return Padding(
-      padding: EdgeInsets.fromLTRB(m.compact ? m.hPad : 16, 8, 16, 8),
+      padding: EdgeInsets.fromLTRB(m.hPad, 8, m.hPad, 8),
       child: const Align(
         alignment: Alignment.centerLeft,
         child: SizedBox(
@@ -2144,7 +2147,7 @@ class _Empty extends StatelessWidget {
       );
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: EdgeInsets.fromLTRB(m.hPad, 4, m.hPad, 16),
       child: Text(text, style: TextStyle(color: c.textSecondary)),
     );
   }

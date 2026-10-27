@@ -173,9 +173,9 @@ class CurrentDriveHeader extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 40),
       child: Padding(
         // Compact: the avatar sits at the rows' icon column (the bar's title
-        // spacing is 4). Touch: the bar's title spacing is already the rows'
-        // 16, so no side padding of our own.
-        padding: EdgeInsets.only(left: m.compact ? m.hPad - 4 : 0),
+        // spacing is 4). Touch: the bar's title spacing is 16, so the rest of
+        // the rows' inset is ours.
+        padding: EdgeInsets.only(left: m.hPad - (m.compact ? 4 : 16)),
         child: Row(children: [
           // The drive: its avatar sits in the rows' icon column and its name
           // where the rows' titles start. A tap opens the drive's page.
@@ -717,7 +717,7 @@ class DriveTreeState extends State<DriveTree> {
   /// The fold chevron at the row's end. Its icon ends where a panel
   /// heading's chevron does: centred in a [SidebarMetrics.chevronSlot] box
   /// that ends [SidebarMetrics.hPad] from the edge on desktop, and pushed out
-  /// to the edge on touch, where the ListTile keeps a wider end padding.
+  /// by the slack around the icon on touch.
   Widget _chevron(DriveChild child, bool open, SidebarMetrics m) {
     final c = context.appColors;
     final button = IconButton(
@@ -739,9 +739,10 @@ class DriveTreeState extends State<DriveTree> {
       onPressed: () => _toggle(child.subject),
     );
     if (m.compact) return button;
-    // A touch ListTile ends its trailing box 24 from the edge, not hPad.
+    // The touch ListTile ends its trailing box hPad from the edge; push the
+    // box out so the icon ends there.
     return Transform.translate(
-        offset: Offset((m.chevronSlot - m.chevronSize) / 2 + 24 - m.hPad, 0),
+        offset: Offset((m.chevronSlot - m.chevronSize) / 2, 0),
         child: button);
   }
 
@@ -753,7 +754,7 @@ class DriveTreeState extends State<DriveTree> {
     final row = Padding(
       key: ValueKey('drive-tree-row-${child.subject}'),
       // Compact rows indent themselves (full-bleed tint, same icon grid).
-      padding: EdgeInsets.only(left: m.compact ? 0 : 16.0 * item.depth),
+      padding: EdgeInsets.only(left: m.compact ? 0 : m.indent * item.depth),
       child: ResourceRow(
         depth: item.depth,
         subject: child.subject,
@@ -850,9 +851,8 @@ class DriveTreeState extends State<DriveTree> {
   Widget _status(_StatusItem s) {
     final c = context.appColors;
     final m = SidebarMetrics.of(context);
-    final pad = m.compact
-        ? EdgeInsets.only(left: m.titleX(s.depth, icon: false), right: m.hPad)
-        : EdgeInsets.only(left: 16.0 + 16.0 * s.depth, right: 16);
+    final pad =
+        EdgeInsets.only(left: m.titleX(s.depth, icon: false), right: m.hPad);
     if (s.error != null) {
       return Padding(
         key: ValueKey('drive-tree-error-${s.parent}'),
@@ -898,7 +898,7 @@ class DriveTreeState extends State<DriveTree> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: m.hPad),
           child: Row(children: [
             SizedBox(
                 width: m.iconSlot,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:atomic_chat/atomic_chat.dart';
+import 'package:atomic_chat/src/sidebar_metrics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -275,8 +276,8 @@ void main() {
       final xs = <double>{};
       for (final t in ['Bob', 'Carol', 'Bob, Carol', 'Plain doc', 'Fox doc', 'Pic doc', 'Dora wrote']) {
         final lead = tester.getRect(inRow(t, find.byType(RowLeading)));
-        expect(lead.size, const Size(32, 32), reason: t);
-        expect(lead.left, 16, reason: t);
+        expect(lead.size, Size.square(SidebarMetrics.touch.iconSlot), reason: t);
+        expect(lead.left, SidebarMetrics.touch.hPad, reason: t);
         xs.add(tester.getRect(find.text(t).first).left);
       }
       expect(xs.length, 1, reason: 'text starts at one x: $xs');
