@@ -1,39 +1,4 @@
-/*!
-# atomic_lib
-
-An embeddable local-first data engine for resources, Loro documents, signed
-commits, identities, inherited permissions, indexed queries, full-text search,
-and synchronization. The Rust crate is the product and component boundary.
-
-## Application API
-
-Start with `Resource`, `Subject`, `Value`, `Store`, `Storelike`, the `agents`,
-`commit`, `hierarchy`, `history`, `search`, and `sync` modules, and the
-`runtime::AtomicNode` convenience facade. Queries and search are part of the
-application API. `AtomicNode` is inside this crate; library code does not have
-to pass through it for every operation.
-
-## Internal API
-
-Modules and types labeled **Internal** are implementation details or extensions
-for first-party consumers. This includes `db::Db` (also re-exported as
-`atomic_lib::Db`), schema and interchange helpers, higher-level data tools,
-application models, and operational helpers. Existing Rust paths remain
-accessible for compatibility; the labels do not change Rust visibility or
-behavior. See the crate README for the complete boundary and feature list.
-
-The node facade still uses internal `AtomicNode::from_db` and `AtomicNode::db`
-helpers. A public constructor that avoids the internal database type has not
-yet been implemented.
-
-The `db` feature enables redb with native file, memory, and browser OPFS
-backends. `db-redb` is an alias; `db-sled` adds legacy compatibility. Enable
-`db` when generating docs for the runtime, query, and full-text search APIs.
-
-`atomic_lib` is beta. Internal APIs are outside the application API stability
-contract. These labels do not introduce a new release cadence, protocol
-version, storage format, or trust model.
-*/
+#![doc = include_str!("../README.md")]
 
 pub mod agents;
 /// **Internal:** aggregation helpers; outside the application API contract.
