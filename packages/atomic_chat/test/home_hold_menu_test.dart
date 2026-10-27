@@ -109,7 +109,7 @@ void main() {
   testWidgets('every empty section opens a page that says so', (tester) async {
     const expected = {
       HomeSection.notifications: 'No notifications',
-      HomeSection.chats: 'No chats yet',
+      HomeSection.chats: 'New AI chat',
       HomeSection.messages: 'No messages yet',
     };
     for (final e in expected.entries) {

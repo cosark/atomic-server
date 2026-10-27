@@ -16,7 +16,7 @@ import 'home_sections_dialog.dart';
 
 import 'models.dart';
 import 'slide_back_route.dart';
-import 'app_bottom_bar.dart' show ShellActions;
+import 'app_bottom_bar.dart' show ShellActions, newResourcePath;
 import 'app_shell.dart';
 import 'assistant_api.dart';
 import 'chat_screen.dart';
@@ -699,6 +699,15 @@ class _ChatsScreenState extends State<ChatsScreen> {
         onTap: () => _openChat(chat),
       );
 
+  /// What an empty chats list offers instead of saying so.
+  Widget _newChatRow() => ResourceRow(
+        key: const Key('chats-empty-new'),
+        icon: Icons.add,
+        shape: RowShape.circle,
+        title: 'New AI chat',
+        onTap: () => _openChat(null),
+      );
+
   /// Favorites and conversations are not tied to one drive: they open in the
   /// current one.
   Widget _homeRow(RecentResource r) => _resourceRow(r, _openResource, _drive);
@@ -934,6 +943,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
           fold: fold,
           future: _chats,
           empty: 'No chats yet',
+          emptyRow: _newChatRow,
           rows: (list) => [for (final chat in list) _chatRow(chat)],
           onShowAll: (list) => _openAllChats(id, list, c),
         );
@@ -1037,9 +1047,18 @@ class _ChatsScreenState extends State<ChatsScreen> {
             subject: child.subject),
       );
 
-  /// The "New" row: the new-document sheet with the current drive selected;
-  /// what it makes opens.
+  /// The "New" row: the web app's Create Something New page for the current
+  /// drive (the new-document sheet without a shell); what it makes opens.
   Future<void> _newInDrive() async {
+    final shell = _shell;
+    if (shell != null) {
+      await shell.openPage<void>(
+          ShellPage.newResource,
+          (_) => ResourceView(
+              api: widget.api, drive: _drive, path: newResourcePath(_drive)));
+      if (mounted) _tree.currentState?.reload();
+      return;
+    }
     final created = await showNewDocumentSheet(context,
         api: widget.api, fallbackDrive: _drive, preferredDrive: _drive);
     if (created == null || !mounted) return;
@@ -1285,6 +1304,9 @@ class _Section<T> extends StatefulWidget {
   final _Fold fold;
   final Future<List<T>> future;
   final String empty;
+
+  /// A row to show in place of [empty] while the list is empty.
+  final Widget Function()? emptyRow;
   final List<Widget> Function(List<T>) rows;
   final void Function(List<T>) onShowAll;
 
@@ -1308,6 +1330,7 @@ class _Section<T> extends StatefulWidget {
     required this.fold,
     required this.future,
     required this.empty,
+    this.emptyRow,
     required this.rows,
     required this.onShowAll,
     this.total,
@@ -1576,12 +1599,9 @@ class _SectionState<T> extends State<_Section<T>>
             child: ErrorText('$error', color: c.alert),
           )
         else if (list == null)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          )
+          const _Loading()
         else if (list.isEmpty)
-          _Empty(widget.empty, c)
+          widget.emptyRow?.call() ?? _Empty(widget.empty, c)
         else
           ...widget.rows(list.take(_homeItems).toList()),
         if (error == null && list != null && list.length > _homeItems)
@@ -2018,8 +2038,12 @@ class _ChatsPageState extends State<_ChatsPage> {
         child: _entries.isEmpty && _done
             ? Align(
                 alignment: Alignment.topLeft,
-                child: _Empty('No chats yet', widget.colors,
-                    key: const Key('list-empty')))
+                child: ResourceRow(
+                    key: const Key('list-empty'),
+                    icon: Icons.add,
+                    shape: RowShape.circle,
+                    title: 'New AI chat',
+                    onTap: widget.onNew))
             : ListView.builder(
                 key: const Key('chats-all-list'),
                 itemCount: count,
@@ -2078,6 +2102,27 @@ class _Heading extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600)),
       );
+}
+
+/// A section still being read: a small spinner where the first row (or the
+/// empty line) will start, so nothing moves when the list arrives.
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) {
+    final m = SidebarMetrics.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(m.compact ? m.hPad : 16, 8, 16, 8),
+      child: const Align(
+        alignment: Alignment.centerLeft,
+        child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+    );
+  }
 }
 
 class _Empty extends StatelessWidget {

@@ -951,7 +951,7 @@ void main() {
       expect(
           find.descendant(
               of: find.byKey(const Key('home-panels')),
-              matching: find.byIcon(Icons.add)),
+              matching: find.widgetWithIcon(IconButton, Icons.add)),
           findsNothing);
       expect(inHome(find.byIcon(Icons.format_list_bulleted)), findsNothing);
       expect(find.textContaining('Show all'), findsNothing);

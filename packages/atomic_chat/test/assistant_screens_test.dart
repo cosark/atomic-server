@@ -434,8 +434,10 @@ void main() {
           .pumpWidget(app(ChatsScreen(drive: 'did:ad:drive', api: api)));
       await tester.pumpAndSettle();
       double y(String t) => tester.getTopLeft(find.text(t)).dy;
-      expect(y('Notifications'),
-          greaterThan(tester.getTopLeft(find.byKey(const Key('drive-new-row'))).dy));
+      expect(
+          y('Notifications'),
+          greaterThan(
+              tester.getTopLeft(find.byKey(const Key('drive-new-row'))).dy));
       expect(find.text('1'), findsOneWidget); // the unread badge
       expect(find.text('Polle in Team chat'), findsOneWidget);
       expect(find.text('See you at ten'), findsOneWidget);
@@ -733,11 +735,42 @@ void main() {
       expect(find.text('offline'), findsNothing);
     });
 
-    testWidgets('says so when there are no chats', (tester) async {
+    testWidgets('offers a new AI chat when there are no chats', (tester) async {
       await tester
           .pumpWidget(app(ChatsScreen(drive: 'did:ad:drive', api: FakeApi())));
       await tester.pumpAndSettle();
-      expect(find.text('No chats yet'), findsOneWidget);
+      expect(find.text('No chats yet'), findsNothing);
+      await tester.tap(find.byKey(const Key('chats-empty-new')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatScreen), findsOneWidget);
+    });
+
+    testWidgets('the loading spinner starts where the empty row does',
+        (tester) async {
+      final api = _SlowChatsApi();
+      await tester
+          .pumpWidget(app(ChatsScreen(drive: 'did:ad:drive', api: api)));
+      await tester.pump();
+      final spinner = find.byType(CircularProgressIndicator).first;
+      final loadingX = tester.getTopLeft(spinner).dx;
+      expect(loadingX, lessThan(60));
+      api.pending.removeAt(0).complete(const []);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.byKey(const Key('chats-empty-new'))).dx,
+          lessThanOrEqualTo(loadingX));
+    });
+
+    testWidgets('"New" in the drive tree opens the new-resource page',
+        (tester) async {
+      await tester.pumpWidget(
+          shellApp(ChatsScreen(drive: 'did:ad:drive', api: FakeApi())));
+      await tester.pumpAndSettle();
+      ResourceView.serverFactory = () async => throw 'no server in a test';
+      await tester.tap(find.byKey(const Key('drive-new-row')));
+      await tester.pumpAndSettle();
+      final page = tester.widget<ResourceView>(find.byType(ResourceView));
+      expect(page.path, newResourcePath('did:ad:drive'));
+      expect(find.text('New document'), findsNothing);
     });
 
     testWidgets('reaches the search', (tester) async {
@@ -802,7 +835,8 @@ void main() {
       expect(find.text('Show all'), findsNothing);
     });
 
-    testWidgets('Messages, Favorites, AI chats are panels in the order of the web sidebar, hidden if empty',
+    testWidgets(
+        'Messages, Favorites, AI chats are panels in the order of the web sidebar, hidden if empty',
         (tester) async {
       tester.view.physicalSize = const Size(800, 3000);
       tester.view.devicePixelRatio = 1;
@@ -931,7 +965,8 @@ void main() {
       expect(find.text('Today'), findsOneWidget);
     });
 
-    testWidgets('Activity sits between the drive tree and AI chats', (tester) async {
+    testWidgets('Activity sits between the drive tree and AI chats',
+        (tester) async {
       final api = FakeApi(
         chatList: [
           (subject: 'c1', name: 'A chat', lastActivity: 0, emoji: null)
@@ -1081,8 +1116,7 @@ void main() {
       expect(page.drive, 'did:ad:a');
     });
 
-    testWidgets(
-        'the bottom bar is one row: search, new chat, profile',
+    testWidgets('the bottom bar is one row: search, new chat, profile',
         (tester) async {
       await tester.pumpWidget(
           shellApp(ChatsScreen(drive: 'did:ad:drive', api: FakeApi())));
@@ -2394,7 +2428,8 @@ void main() {
         expect(find.byType(ResourceView), findsOneWidget, reason: name);
       }
 
-      await tester.pumpWidget(app(open('https://atomicdata.dev/classes/Document')));
+      await tester
+          .pumpWidget(app(open('https://atomicdata.dev/classes/Document')));
       await tester.pumpAndSettle();
       expect(find.byType(ResourceView), findsOneWidget);
       expect(find.byType(ChatScreen), findsNothing);
@@ -2407,8 +2442,8 @@ void main() {
     testWidgets('a host registers its own native view, and removes it',
         (tester) async {
       ResourceView.serverFactory = () async => throw 'no server in a test';
-      addTearDown(() => registerNativeView(
-          'https://atomicdata.dev/classes/Table', null));
+      addTearDown(() =>
+          registerNativeView('https://atomicdata.dev/classes/Table', null));
       registerNativeView('https://atomicdata.dev/classes/Table',
           (api, drive, subject, title) => Text('table $title'));
       Widget open() => openResourceView(
@@ -2953,7 +2988,6 @@ class _PerDrive extends FakeApi {
   Future<List<RecentResource>> recentResources(String drive) async =>
       byDrive[drive] ?? [];
 }
-
 
 class _SlowNotifications extends FakeApi {
   final Future<List<NotificationItem>> pending;
