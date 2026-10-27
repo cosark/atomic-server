@@ -15,6 +15,7 @@ import {
 import { ThemeProvider } from 'styled-components';
 import {
   Datatype,
+  commits,
   type JSONValue,
   LoroLoader,
   Store,
@@ -93,6 +94,18 @@ async function renderCell(
     noParent: true,
   });
   await row.set(property.subject, stored, false);
+  // Editing validates through the store; supply the same local property the cell renders.
+  vi.spyOn(store, 'getProperty').mockImplementation(async subject => {
+    if (subject === property.subject) return property;
+    if (subject === commits.properties.createdAt)
+      return {
+        subject,
+        datatype: Datatype.TIMESTAMP,
+        shortname: 'createdAt',
+        description: '',
+      };
+    throw new Error(`Unexpected property read: ${subject}`);
+  });
 
   // StrictMode as the app runs it: an editor that stores on unmount must not
   // store when React only re-runs its effects.

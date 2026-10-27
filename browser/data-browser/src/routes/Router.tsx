@@ -29,6 +29,7 @@ import { OnboardingRoute } from './OnboardingRoute';
 import { WelcomeRoute } from './WelcomeRoute';
 import { NewDriveRoute } from './NewDriveRoute';
 import { SignOutRoute } from './SignOutRoute';
+import { RouteConsentRoute } from './RouteConsentRoute';
 
 const DevDriveRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -71,6 +72,19 @@ const SandboxRoute = createRoute({
   }
 });
 
+// Split-pieces exploration (views, integrations, lenses). Dev builds only.
+const PiecesDemoRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: pathNames.piecesDemo,
+  // @ts-expect-error - Mismatch between unavailable route name and demo route name
+}).lazy(() => {
+  if (devRoutesEnabled()) {
+    return import('./PiecesDemoRoute').then(mod => mod.piecesDemoRouteLazy);
+  } else {
+    return Promise.resolve(unavailableLazyRoute);
+  }
+});
+
 const routeTree = rootRoute.addChildren({
   appRoute: appRoute.addChildren({
     WelcomeRoute,
@@ -99,10 +113,12 @@ const routeTree = rootRoute.addChildren({
     SandboxRoute,
     DevDriveRoute,
     DemoRoute,
+    PiecesDemoRoute,
     InviteRoute,
     ConnectAgentRoute,
     AuthorizeMcpRoute,
     LinkOpenRouter,
+    RouteConsentRoute,
   }),
   topRoute,
 });

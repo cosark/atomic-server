@@ -1,3 +1,4 @@
+import type { ImporterRunResult } from './viewProtocol';
 import { afterEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { RPCClient } from './rpc';
@@ -563,4 +564,209 @@ it('knows whether the host is light or dark, before and after a theme message', 
   stop();
   style('dark');
   expect(seen).toEqual([{ colorScheme: 'dark' }, { colorScheme: 'light' }]);
+});
+
+it('asks about and for row access over the canonical wire (#1740)', () => {
+  for (const op of ['rowAccess', 'requestRowAccess'] as const)
+    expect(isViewRequest(viewRequest(1, op))).toBe(true);
+
+  const f = frame();
+  const store = generatedStore(f);
+  void store.rowAccess();
+  void store.requestRowAccess();
+  const sent = f.parent.postMessage.mock.calls.map(([m]) => m);
+  expect(sent.every(isViewRequest)).toBe(true);
+  expect(sent.map(m => [m.op, m.args])).toEqual([
+    ['rowAccess', {}],
+    ['requestRowAccess', {}],
+  ]);
+});
+
+function timedStore(f: ReturnType<typeof frame>) {
+  const source = readFileSync(
+    new URL(
+      '../../../server/src/plugins/assets/view-client.js',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  return new Function(
+    'window',
+    'setTimeout',
+    'clearTimeout',
+    source.replace('export const store', 'const store') + '\nreturn store;',
+  )(f.window, setTimeout, clearTimeout);
+}
+
+it('asks the host to open links and resources, and waits on the person as long as it takes', async () => {
+  for (const op of ['openExternal', 'openResource'] as const)
+    expect(isViewRequest(viewRequest(1, op, {}))).toBe(true);
+
+  vi.useFakeTimers();
+  const f = frame();
+  const store = timedStore(f);
+
+  const external = store.openExternal(new URL('https://www.notion.so/p'));
+  const resource = store.openResource('did:ad:row');
+  const outcome = resource.then(
+    () => 'answered',
+    (e: Error) => e.message,
+  );
+  const [ask, open] = f.parent.postMessage.mock.calls.map(([m]) => m);
+  expect([ask, open].every(isViewRequest)).toBe(true);
+  expect(ask).toMatchObject({
+    op: 'openExternal',
+    args: { url: 'https://www.notion.so/p' },
+  });
+  expect(open).toMatchObject({
+    op: 'openResource',
+    args: { subject: 'did:ad:row' },
+  });
+
+  // The person may take minutes to decide; that is not a silent host.
+  expect(vi.getTimerCount()).toBe(1);
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  expect(await outcome).toMatch('did not answer openResource');
+  f.reply({
+    type: 'atomic.view.response',
+    version: 1,
+    id: ask.id,
+    result: { status: 'cancelled' },
+  });
+  expect(await external).toEqual({ status: 'cancelled' });
+});
+
+it('forgets its capabilities for a platform once disconnected', async () => {
+  const f = frame();
+  const store = generatedStore(f);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('[]', { status: 200 })),
+  );
+  const answer = (id: unknown, result: unknown) =>
+    f.reply({ type: 'atomic.view.response', version: 1, id, result });
+  const capability = {
+    capability: 'cap',
+    aud: 'https://proxy.example',
+    exp: Math.floor(Date.now() / 1000) + 600,
+  };
+  const call = () =>
+    store.proxy.request({ platform: 'pets', connectionId: 'c1', path: '/' });
+  const asks = () =>
+    f.parent.postMessage.mock.calls.filter(([m]) => m.op === 'proxyCapability')
+      .length;
+
+  let pending = call();
+  await settle();
+  answer(f.parent.postMessage.mock.calls.at(-1)![0].id, capability);
+  await settle();
+  answer(f.parent.postMessage.mock.calls.at(-1)![0].id, {
+    status: 200,
+    headers: {},
+    text: '[]',
+  });
+  await pending;
+  // Cached: a second call mints nothing.
+  const cached = call();
+  await settle();
+  answer(f.parent.postMessage.mock.calls.at(-1)![0].id, {
+    status: 200,
+    headers: {},
+    text: '[]',
+  });
+  await cached;
+  expect(asks()).toBe(1);
+
+  const disconnected = store.proxy.disconnect({ platform: 'pets' });
+  const ask = f.parent.postMessage.mock.calls.at(-1)![0];
+  expect(ask).toMatchObject({
+    op: 'proxyDisconnect',
+    args: { platform: 'pets' },
+  });
+  answer(ask.id, {
+    status: 'disconnected',
+    platform: 'pets',
+    connectionIds: ['c1'],
+  });
+  expect(await disconnected).toEqual({
+    status: 'disconnected',
+    platform: 'pets',
+    connectionIds: ['c1'],
+  });
+
+  // The next call asks the host again, which now refuses it.
+  pending = call();
+  await settle();
+  expect(asks()).toBe(2);
+  f.reply({
+    type: 'atomic.view.response',
+    version: 1,
+    id: f.parent.postMessage.mock.calls.at(-1)![0].id,
+    error: 'No pets connection c1 is delegated to this app. Connect again.',
+  });
+  await expect(pending).rejects.toThrow('delegated to this app');
+});
+
+it('carries the route ops, and store.routes sends them', async () => {
+  for (const op of [
+    'readRouteStatus',
+    'routeTokens',
+    'revokeRouteToken',
+  ] as const)
+    expect(isViewRequest(viewRequest(1, op))).toBe(true);
+  const f = frame();
+  const store = generatedStore(f);
+  void store.routes.status();
+  void store.routes.tokens();
+  void store.routes.revokeToken('tok_1');
+  // No token id, nothing asked.
+  await expect(store.routes.revokeToken('')).rejects.toThrow('token id');
+  const sent = f.parent.postMessage.mock.calls.map(([m]) => m);
+  expect(sent.every(isViewRequest)).toBe(true);
+  expect(sent.map(m => [m.op, m.args])).toEqual([
+    ['readRouteStatus', {}],
+    ['routeTokens', {}],
+    ['revokeRouteToken', { tokenId: 'tok_1' }],
+  ]);
+});
+
+it('runs its importer through the host, which may take as long as the review does', async () => {
+  vi.useFakeTimers();
+  const f = frame();
+  const store = timedStore(f);
+  const file = {
+    name: 'statement.mt940',
+    mediaType: 'text/plain',
+    text: ':20:X',
+  };
+  const outcome = store.importer.run({ file });
+  const [request] = f.parent.postMessage.mock.calls[0];
+
+  expect(isViewRequest(request)).toBe(true);
+  expect(request.op).toBe('runImporter');
+  expect(request.args).toEqual({ file });
+
+  // A person reading a review is not a host that went silent.
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  const summary: ImporterRunResult = {
+    status: 'applied',
+    importer: 'importer',
+    created: 2,
+    updated: 0,
+    destroyed: 0,
+    failed: 0,
+    errors: [],
+  };
+  f.reply({
+    type: 'atomic.view.response',
+    version: 1,
+    id: request.id,
+    result: summary,
+  });
+  expect(await outcome).toEqual(summary);
+
+  // With no file, the host asks the person to choose one.
+  void store.importer.run();
+  expect(f.parent.postMessage.mock.calls[1][0].args).toEqual({});
 });

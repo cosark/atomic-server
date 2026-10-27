@@ -1,6 +1,6 @@
 import {
   Collection,
-  JSONValue,
+  type JSONValue,
   Property,
   Resource,
   core,

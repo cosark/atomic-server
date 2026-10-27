@@ -105,7 +105,10 @@ export interface UseTableViewResult {
   /** Switch the active view, via the `?view=` search param. */
   setActiveView: (subject: string) => void;
   /** Create a new (empty) view of the given kind, link it, and switch to it. */
-  createView: (kind?: ViewKind | string, label?: string) => void;
+  createView: (
+    kind?: ViewKind | string,
+    label?: string,
+  ) => Promise<string | undefined>;
   /**
    * Change a view's renderer kind in place — only when another view of its
    * current type remains (#1806); otherwise a new view is added instead. A
@@ -115,7 +118,7 @@ export interface UseTableViewResult {
     subject: string,
     kind: ViewKind | string,
     label?: string,
-  ) => void;
+  ) => Promise<string | undefined>;
   /** Copy a view (its config) into a new "<name> copy" view and switch to it. */
   duplicateView: (subject: string) => void;
   /** Put the table's views in a new order (the tab order). */
@@ -590,7 +593,7 @@ export function useTableView(
 
   const createView = useCallback(
     (kind: ViewKind | string = DEFAULT_VIEW_KIND, label?: string) => {
-      void (async () => {
+      return (async () => {
         const from = liveViewParam.current;
 
         // A table with no saved views shows one implicit Table tab, and that
@@ -617,6 +620,8 @@ export function useTableView(
           kind,
         );
         goToCreatedView(created.subject, from);
+
+        return created.subject;
       })().catch(() => undefined);
     },
     [createViewResource, views.length, defaultViewSubject, goToCreatedView],
@@ -888,12 +893,10 @@ export function useTableView(
       // the last table view, the rows' own layout. Add a view instead and
       // leave this one as it is (#1806).
       if (!canChangeViewType(subject, typesBySubject)) {
-        createView(kind, label);
-
-        return;
+        return createView(kind, label);
       }
 
-      void (async () => {
+      return (async () => {
         const v = store.getResourceLoading(subject);
         const fromType = typesBySubject.get(subject)!;
         const fromApp = appViewOf(fromType);
@@ -928,6 +931,8 @@ export function useTableView(
         }
 
         await v.save();
+
+        return subject;
       })().catch(() => undefined);
     },
     [store, table, createDashboardResource, createView, readViewTypes],

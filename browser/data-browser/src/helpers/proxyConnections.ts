@@ -40,6 +40,11 @@ export interface ConnectScope {
   app: string;
   /** The app's own agent (`atomic:agent:…`), which gets the delegation. */
   appAgent: string;
+  /**
+   * `app` is an Installation: once delegated, the return records
+   * `integrationConnections[platform]` on it (#1700, answer 3).
+   */
+  recordOnInstallation?: boolean;
 }
 
 interface PendingConnect extends ConnectScope {
@@ -67,6 +72,18 @@ export interface ProxyConnection {
   delegations: { agent: string; label?: string }[];
 }
 
+/** One row of `runtimes` in `GET /connections`. */
+export interface ProxyRuntime {
+  agent: string;
+  app: string;
+  label?: string | null;
+  created_at?: string | number;
+  last_used_at?: string | number | null;
+}
+
+/** The proxy refuses longer labels. */
+const MAX_LABEL = 200;
+
 /** What the frame gets: the capability, and where to use it. */
 export interface MintedCapability {
   capability: string;
@@ -88,6 +105,12 @@ export interface ProxyHost {
   connections(platform: string): Promise<ConnectionReference[]>;
   /** The configured proxy's origin: the only place `proxyFetch` may go. */
   origin: string;
+  /**
+   * Takes this app's delegation off its `platform` connections, and off
+   * `also` (connection ids the host knows about, such as an Installation's
+   * recorded one). Never deletes a connection. Returns the connection ids.
+   */
+  disconnect(platform: string, also?: readonly string[]): Promise<string[]>;
 }
 
 /** An error the proxy returned: `{error, message}` and the HTTP status. */
@@ -103,6 +126,14 @@ export class ProxyError extends Error {
 
 export const isPlatformId = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-z0-9-]{1,80}$/.test(value);
+
+/** `pets` -> `Pets`, `github-issues` -> `Github Issues`. */
+export function platformName(id: string): string {
+  return id
+    .split('-')
+    .map(word => `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`)
+    .join(' ');
+}
 
 export const base64url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes))
@@ -336,9 +367,14 @@ export class ProxyConnections {
    * (`error=access_denied`) drops the pending handoff and still returns
    * there, so the app can offer to connect again.
    */
-  async finish(
-    params: URLSearchParams,
-  ): Promise<{ returnTo: string; connected: boolean; connectionId?: string }> {
+  async finish(params: URLSearchParams): Promise<{
+    returnTo: string;
+    connected: boolean;
+    connectionId?: string;
+    platform: string;
+    app: string;
+    recordOnInstallation: boolean;
+  }> {
     const state = params.get('integration_state') ?? '';
     const c = this.pending(state);
     // Consumed before anything else: the verifier is single-use either way.
@@ -354,8 +390,15 @@ export class ProxyConnections {
 
     const code = params.get('connection_code');
 
+    const scope = {
+      returnTo: c.returnTo,
+      platform: c.platform,
+      app: c.app,
+      recordOnInstallation: c.recordOnInstallation === true,
+    };
+
     if (!code || code.length > 4096) {
-      return { returnTo: c.returnTo, connected: false };
+      return { ...scope, connected: false };
     }
 
     const result = (await this.call('POST', '/connect/redeem', {
@@ -375,11 +418,7 @@ export class ProxyConnections {
 
     await this.delegate(result.connection_id, c.appAgent, c.label);
 
-    return {
-      returnTo: c.returnTo,
-      connected: true,
-      connectionId: result.connection_id,
-    };
+    return { ...scope, connected: true, connectionId: result.connection_id };
   }
 
   /** This user's connections at the proxy, with their delegations. */
@@ -434,6 +473,74 @@ export class ProxyConnections {
       'DELETE',
       `/connections/${encodeURIComponent(connectionId)}/agents/${encodeURIComponent(canonicalAgent(agent))}`,
     );
+  }
+
+  /**
+   * This user's runtimes at the proxy (`runtimes` of `GET /connections`):
+   * node agents that may act for an installation's app id.
+   */
+  async runtimes(): Promise<ProxyRuntime[]> {
+    const result = (await this.call('GET', '/connections')) as {
+      runtimes?: unknown;
+    } | null;
+    const rows = Array.isArray(result?.runtimes) ? result.runtimes : [];
+
+    return (rows as ProxyRuntime[]).filter(
+      row => typeof row?.agent === 'string' && typeof row.app === 'string',
+    );
+  }
+
+  /**
+   * Registers a node's agent as a runtime of installation `app`
+   * (`POST /runtimes {app, agent, label?}`), signed by the owner. The proxy
+   * upserts on (owner, agent), so registering again is harmless.
+   */
+  async registerRuntime(app: string, agent: string, label?: string) {
+    await this.call('POST', '/runtimes', {
+      app: canonicalAgent(app),
+      agent: canonicalAgent(agent),
+      ...(label ? { label: [...label].slice(0, MAX_LABEL).join('') } : {}),
+    });
+  }
+
+  /** Removes a runtime; the proxy refuses that agent from then on. */
+  async unregisterRuntime(agent: string) {
+    await this.call(
+      'DELETE',
+      `/runtimes/${encodeURIComponent(canonicalAgent(agent))}`,
+    );
+  }
+
+  /**
+   * Takes `appAgent`'s delegation off every `platform` connection delegated
+   * to it, and off `also`, one `DELETE /connections/{id}/agents/{agent}`
+   * each. Only this app loses access: the connection stays, with any other
+   * app's delegation, because deleting it is the person's call on a page, not
+   * an app's. A delegation the proxy no longer has (404) counts as gone.
+   * Returns the connection ids it was taken off.
+   */
+  async disconnectApp(
+    appAgent: string,
+    platform: string,
+    also: readonly string[] = [],
+  ): Promise<string[]> {
+    if (!isPlatformId(platform)) throw new Error('Invalid platform');
+    const ids = [
+      ...new Set([
+        ...(await this.delegated(appAgent, platform)).map(r => r.connectionId),
+        ...also,
+      ]),
+    ];
+
+    for (const id of ids) {
+      try {
+        await this.undelegate(id, appAgent);
+      } catch (e) {
+        if (!(e instanceof ProxyError && e.status === 404)) throw e;
+      }
+    }
+
+    return ids;
   }
 
   /** Deletes a connection at the proxy, and with it every delegation. */
@@ -503,6 +610,8 @@ export class ProxyConnections {
       capability: async request =>
         this.mintCapability({ ...request, appAgent: await appAgent() }),
       connections: async platform => this.delegated(await appAgent(), platform),
+      disconnect: async (platform, also) =>
+        this.disconnectApp(await appAgent(), platform, also),
     };
   }
 }

@@ -307,6 +307,8 @@ pub mod error_code {
     /// do not retry it over another transport. A client that predates this
     /// code sees an unknown code and retries generically.
     pub const BUSY: u16 = 12;
+    /// Activating an Installation was refused by the node plugin-route gates.
+    pub const HOST_FEATURE_UNAVAILABLE: u16 = 13;
 }
 
 /// Pull the `retry_after_ms=<n>` hint out of a `BUSY` error message (or an
@@ -320,6 +322,39 @@ pub fn retry_after_ms_from_message(message: &str) -> Option<u64> {
 /// The message text of a `BUSY` refusal for a retry delay in milliseconds.
 pub fn busy_message(retry_after_ms: u64) -> String {
     format!("Server busy; retry_after_ms={retry_after_ms}")
+}
+
+/// Separates an error message from the typed problem (RFC 9457 fields, as
+/// JSON) that may follow it. Commit errors travel as one string on both wire
+/// paths (the `ERROR` frame's message, the `/commit` Error resource's
+/// `description`), so a refusal with structured fields appends them after
+/// this marker rather than changing either format. A client that knows the
+/// marker splits it off; one that doesn't still shows the sentence first.
+pub const PROBLEM_MARKER: &str = "\nproblem+json: ";
+
+/// `message` with `problem` appended after [`PROBLEM_MARKER`].
+pub fn with_problem(message: &str, problem: &serde_json::Value) -> String {
+    format!("{message}{PROBLEM_MARKER}{problem}")
+}
+
+/// The human message and, if one follows [`PROBLEM_MARKER`], the typed
+/// problem. Anything a caller wrapped around the message (a prefix, or text
+/// after the JSON) is tolerated: the message is everything before the marker,
+/// the problem the first JSON value after it.
+pub fn split_problem(message: &str) -> (&str, Option<serde_json::Value>) {
+    let Some(at) = message.find(PROBLEM_MARKER) else {
+        return (message, None);
+    };
+    let rest = &message[at + PROBLEM_MARKER.len()..];
+    let problem = serde_json::Deserializer::from_str(rest)
+        .into_iter::<serde_json::Value>()
+        .next()
+        .and_then(Result::ok)
+        .filter(serde_json::Value::is_object);
+    match problem {
+        Some(problem) => (&message[..at], Some(problem)),
+        None => (message, None),
+    }
 }
 
 /// Decode the payload of an `ERROR` frame (slice *after* the tag byte):
@@ -364,6 +399,12 @@ pub fn classify_commit_error(message: &str) -> u16 {
     // client-side for review/rebase instead of retrying indefinitely.
     if message.contains("Commit's Loro update produced no state changes") {
         return error_code::CAUSALITY_CONFLICT;
+    }
+
+    if let (_, Some(problem)) = split_problem(message) {
+        if problem.get("type").and_then(|t| t.as_str()) == Some("host-feature-unavailable") {
+            return error_code::HOST_FEATURE_UNAVAILABLE;
+        }
     }
 
     // Admission refusals are not transport failures. They can recover after
@@ -2106,6 +2147,32 @@ mod tests {
             classify_commit_error("some other error"),
             error_code::UNKNOWN
         );
+        let refusal = with_problem(
+            "This plugin opens public endpoints on the server (route `GET /x`).",
+            &serde_json::json!({"type": "host-feature-unavailable", "needed": "read-only"}),
+        );
+        assert_eq!(
+            classify_commit_error(&format!("Commit refused: {refusal}")),
+            error_code::HOST_FEATURE_UNAVAILABLE
+        );
+    }
+
+    #[test]
+    fn a_problem_splits_off_its_message() {
+        let problem =
+            serde_json::json!({"type": "host-feature-unavailable", "surfaces": ["a, (b)"]});
+        let message = with_problem("Refused.", &problem);
+        assert_eq!(split_problem(&message), ("Refused.", Some(problem.clone())));
+        // A wrapper's prefix stays with the message, a suffix is dropped.
+        let wrapped = format!("Hook failed: {message}. Try again");
+        assert_eq!(
+            split_problem(&wrapped),
+            ("Hook failed: Refused.", Some(problem))
+        );
+        assert_eq!(split_problem("plain"), ("plain", None));
+        // A marker without JSON after it is just text.
+        let broken = format!("x{PROBLEM_MARKER}not json");
+        assert_eq!(split_problem(&broken), (broken.as_str(), None));
     }
 
     /// The message a table row gets when its class never reached this server.

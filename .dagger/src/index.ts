@@ -953,7 +953,7 @@ export class AtomicServer {
           .withExec([
             'sh',
             '-c',
-            'apt-get update -qq && apt-get install -y protobuf-compiler',
+            'apt-get update -qq && apt-get install -y protobuf-compiler libclang-dev clang',
           ]),
         CARGO_HOME_BOOKWORM,
       )
@@ -1010,6 +1010,14 @@ export class AtomicServer {
         // symptom. `jsTestIntegration` (this container's only caller) tests
         // `@tomic/lib`'s NodeClientDb sync path — it never touches
         // vector-search, so dropping it here costs no real coverage.
+        //
+        // It does run server-side plugins (`after-commit.integration.test.ts`
+        // reads an app's manifest through the embedded plugin runtime), so
+        // this build needs `wasm32-wasip2` like `rustTest()` and the e2e
+        // build. Without it build.rs ships an empty runtime and the test
+        // fails far from the cause (candidate17, run 36624214790).
+        .withExec(['rustup', 'target', 'add', 'wasm32-wasip2'])
+        .withEnvVariable('ATOMICSERVER_REQUIRE_PLUGIN_RUNTIME', 'true')
         .withExec([
           'cargo',
           'build',
@@ -1876,6 +1884,21 @@ export class AtomicServer {
             `--test-threads ${this.hostKnobs.nextestTestThreads} ` +
             `--retries ${this.hostKnobs.nextestRetries}`,
         ])
+        // The `plugin-routes` feature (#1711) is off in every release build,
+        // so gated code would rot unseen. Its tests run here, scoped to
+        // `atomic-server` (the only crate with the feature); the
+        // `release_feature_sets_exclude_plugin_routes` unit test above, in
+        // the default pass, fails if a release feature set ever turns it on.
+        .withExec([
+          'sh',
+          '-c',
+          'export PATH="/opt/cargo-bin/bin:$PATH" && ' +
+            'cargo nextest run --locked -p atomic-server --lib ' +
+            '--no-default-features --features light,wasm-plugins,plugin-routes ' +
+            `--build-jobs ${this.hostKnobs.nextestBuildJobs} ` +
+            `--test-threads ${this.hostKnobs.nextestTestThreads} ` +
+            `--retries ${this.hostKnobs.nextestRetries}`,
+        ])
         .stdout()
     );
   }
@@ -1911,6 +1934,20 @@ export class AtomicServer {
         '--no-default-features',
         '--features',
         'light,wasm-plugins',
+      ])
+      // Gated `plugin-routes` code (#1711) is in no release build; lint it
+      // here so it doesn't rot. Only `atomic-server` has the feature.
+      .withExec([
+        'cargo',
+        'clippy',
+        '--locked',
+        '-p',
+        'atomic-server',
+        '--no-deps',
+        '--all-targets',
+        '--no-default-features',
+        '--features',
+        'light,wasm-plugins,plugin-routes',
       ])
       .stdout();
   }

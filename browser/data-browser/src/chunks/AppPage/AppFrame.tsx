@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { styled } from 'styled-components';
 import {
   errorMessageFromResponse,
-  signRequest,
+  signedRequestInit,
   useResource,
   useStore,
   useTitle,
@@ -13,11 +13,21 @@ import { findSchema, pluginSchema } from '@tomic/lib';
 import { FrameBridge } from '@helpers/extensions/FrameBridge';
 import {
   appChanges,
+  isWithinApp,
   handleRequest,
   isHostRequest,
-  isWithinApp,
+  resolveAppImporter,
+  resourceToOpen,
   type HostReply,
 } from './hostStore';
+import {
+  checkExternalLink,
+  openInNewTab,
+} from '@helpers/extensions/externalLink';
+import { useNavigateWithTransition } from '@hooks/useNavigateWithTransition';
+import { paths } from '../../routes/paths';
+import { AppImporterRun, type ImporterAsk } from './AppImporterRun';
+import { describePluginSource } from '@chunks/PluginRuns/runScript';
 import { LoaderBlock } from '@components/Loader';
 import { Button } from '@components/Button';
 import { Row } from '@components/Row';
@@ -32,13 +42,20 @@ import {
 import { getIntegrationProxy } from '@helpers/integrationProxy';
 import {
   isPlatformId,
+  platformName,
   ProxyConnections,
   type ProxyConnection,
 } from '@helpers/proxyConnections';
-import { appAgentOf } from './appAgent';
 import { ConnectDialog } from './ConnectDialog';
 import { useHostUI } from '@components/HostUI/hostUI';
 import type { ViewChanges } from '@helpers/extensions/viewApply';
+import { ProxyConsentBar, ProxyConsentText } from '@components/ProxyConsentBar';
+import { appAgentOf } from './appAgent';
+import { grantRowAccess, rowAccessQuestion } from './rowGrant';
+import { RowGrantText } from './RowGrantText';
+import { registerRuntimesInBackground } from '@helpers/useInstallationRuntimes';
+
+const IMPORT_WAITING = 'An import from this app is already waiting for you.';
 
 /** Changing installation or destination must discard source tokens and pending replies. */
 export function AppFrame(props: Parameters<typeof AppFrameSession>[0]) {
@@ -64,11 +81,18 @@ function AppFrameSession({
   app,
   drive,
   table,
+  view,
   onOutcome,
   silent,
 }: {
   app: string;
   drive: string;
+  /**
+   * The View (tab) showing this app on `table`. An app that asks to edit the
+   * table's rows gets a grant tied to this view, so removing the tab takes
+   * it back.
+   */
+  view?: string;
   /**
    * The table this app is a view of, when it is being used as one.
    *
@@ -98,6 +122,24 @@ function AppFrameSession({
   const [connectAsk, setConnectAsk] = useState<ConnectAsk>();
   const connectAskRef = useRef<ConnectAsk | undefined>(undefined);
   const [appTitle] = useTitle(useResource(app));
+  // An app asking to open a link outside the drive. Same rule: only a click
+  // here opens it, so the frame never needs popup rights.
+  const [externalAsk, setExternalAsk] = useState<ExternalAsk>();
+  const externalAskRef = useRef<ExternalAsk | undefined>(undefined);
+  const navigate = useNavigateWithTransition();
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+  // An app asking to run its own importer: a picker and a review, both drawn
+  // by this page. One at a time, so a review is never swapped out under the
+  // person.
+  const [importerAsk, setImporterAsk] = useState<ImporterAsk>();
+  const importerAskRef = useRef<ImporterAsk | undefined>(undefined);
+  // An app asking to edit the table's rows (#1740). Drawn by this page, and
+  // only a click here grants it.
+  const [rowAsk, setRowAsk] = useState<RowAsk>();
+  const rowAskRef = useRef<RowAsk | undefined>(undefined);
   const { askAI } = useAISidebar();
   const frameRef = useRef<HTMLIFrameElement>(null);
   // Held in a ref so an inline callback does not tear down the listener — and
@@ -143,6 +185,14 @@ function AppFrameSession({
     };
   }, [store, drive, app]);
 
+  // An Installation's nodes act for its app id at the proxy only once they
+  // are registered as its runtimes. Covers coming back from a connect
+  // handoff, which delegates and then reloads this page. A no-op for
+  // `createApp` apps.
+  useEffect(() => {
+    registerRuntimesInBackground(store, app);
+  }, [store, app]);
+
   useEffect(() => {
     if (!entrypoint) return;
 
@@ -179,7 +229,7 @@ function AppFrameSession({
     const frame = frameRef.current;
     if (!frame) return;
     // Per frame: `undo` reverts what this frame applied, nothing older.
-    const changes = appChanges(store, drive, app);
+    const changes = appChanges(store, drive, app, table);
     const bridge = new FrameBridge(frame, (wire, originalSession) => {
       const canonical = isViewRequest(wire);
       const data = canonical
@@ -216,6 +266,7 @@ function AppFrameSession({
       if (!isHostRequest(data)) return;
 
       if (
+        data.op !== 'openResource' &&
         handleUI(
           data as unknown as Parameters<typeof handleUI>[0],
           session.post,
@@ -257,6 +308,109 @@ function AppFrameSession({
         return;
       }
 
+      if (data.op === 'requestRowAccess') {
+        const previous = rowAskRef.current;
+        previous?.reply({
+          id: previous.id,
+          result: { status: 'denied', reason: /* @wc-ignore */ 'Asked again' },
+        });
+        rowAskRef.current = undefined;
+        setRowAsk(undefined);
+
+        rowAccessQuestion(store, { app, drive, table, view }, () =>
+          appLabel(store, app),
+        )
+          .then(outcome => {
+            if (outcome.ask === false) {
+              session.post({ id: data.id, result: outcome.result });
+
+              return;
+            }
+
+            const ask: RowAsk = {
+              id: data.id,
+              appName: outcome.appName,
+              keepsExtras: outcome.extras.length > 0,
+              reply: session.post,
+            };
+            rowAskRef.current = ask;
+            setRowAsk(ask);
+          })
+          .catch((e: Error) => session.post({ id: data.id, error: e.message }));
+
+        return;
+      }
+
+      if (data.op === 'openExternal') {
+        const link = checkExternalLink(data.url);
+
+        if ('error' in link) {
+          session.post({ id: data.id, error: link.error });
+
+          return;
+        }
+
+        const { url } = link;
+        // One question at a time; a second ask answers the first.
+        const previous = externalAskRef.current;
+        previous?.reply({ id: previous.id, result: { status: 'cancelled' } });
+        const ask: ExternalAsk = { id: data.id, url, reply: session.post };
+        externalAskRef.current = ask;
+        setExternalAsk(ask);
+
+        return;
+      }
+
+      if (data.op === 'openResource') {
+        resourceToOpen(store, data.subject)
+          .then(subject => {
+            session.post({
+              id: data.id,
+              result: { status: 'opened', subject },
+            });
+            void navigateRef.current(
+              `${paths.show}?${new URLSearchParams({ subject })}`,
+            );
+          })
+          .catch((e: Error) => session.post({ id: data.id, error: e.message }));
+
+        return;
+      }
+
+      if (data.op === 'runImporter') {
+        if (importerAskRef.current) {
+          session.post({
+            id: data.id,
+            error: IMPORT_WAITING,
+          });
+
+          return;
+        }
+
+        resolveAppImporter(store, drive, table, data, describePluginSource)
+          .then(resolved => {
+            if (importerAskRef.current) {
+              session.post({
+                id: data.id,
+                error: IMPORT_WAITING,
+              });
+
+              return;
+            }
+
+            const ask: ImporterAsk = {
+              id: data.id,
+              resolved,
+              reply: session.post,
+            };
+            importerAskRef.current = ask;
+            setImporterAsk(ask);
+          })
+          .catch((e: Error) => session.post({ id: data.id, error: e.message }));
+
+        return;
+      }
+
       if (data.op === 'subscribe' && typeof data.subject === 'string') {
         const subject = data.subject;
         session.watch(subject, () =>
@@ -284,7 +438,7 @@ function AppFrameSession({
       bridge.close();
       bridgeRef.current = undefined;
     };
-  }, [store, app, drive, table, src, handleUI, forwardKey]);
+  }, [store, app, drive, table, view, src, handleUI, forwardKey]);
 
   useEffect(() => {
     bridgeRef.current?.setStyle(`${resetCss}\n${stylesheet}`, colorScheme);
@@ -361,6 +515,52 @@ function AppFrameSession({
       appAgent,
       await appLabel(store, app),
     );
+    registerRuntimesInBackground(store, app);
+  };
+
+  const finishExternal = (status: 'opened' | 'cancelled') => {
+    if (!externalAsk) return;
+
+    // Opened from this click, so the browser allows the new tab without the
+    // frame ever holding popup rights.
+    if (status === 'opened') openInNewTab(externalAsk.url);
+    externalAsk.reply({ id: externalAsk.id, result: { status } });
+    externalAskRef.current = undefined;
+    setExternalAsk(undefined);
+  };
+
+  const externalHost = externalAsk?.url.host;
+
+  const finishRowAsk = (reply: HostReply) => {
+    rowAsk?.reply(reply);
+    rowAskRef.current = undefined;
+    setRowAsk(undefined);
+  };
+
+  const allowRows = () => {
+    if (!rowAsk || !table || !view) return;
+
+    grantRowAccess(store, { drive, table, app, view, via: 'request' })
+      .then(() =>
+        finishRowAsk({ id: rowAsk.id, result: { status: 'granted' } }),
+      )
+      .catch((e: Error) =>
+        finishRowAsk({
+          id: rowAsk.id,
+          result: { status: 'denied', reason: e.message },
+        }),
+      );
+  };
+
+  const declineRows = () => {
+    if (!rowAsk) return;
+    finishRowAsk({
+      id: rowAsk.id,
+      result: {
+        status: 'denied',
+        reason: /* @wc-ignore */ 'The person said no',
+      },
+    });
   };
 
   const fixIt = () => {
@@ -410,6 +610,47 @@ function AppFrameSession({
           onConnect={() => connect(connectAsk)}
           onUseExisting={shareExisting}
           onClosed={used => finishAsk(connectAsk, used)}
+        />
+      )}
+      {externalAsk && (
+        <ProxyConsentBar aria-label='Open a link'>
+          <ProxyConsentText>
+            This app wants to open <Host>{externalHost}</Host> in a new tab.
+            <ExternalUrl>{externalAsk.url.href}</ExternalUrl>
+          </ProxyConsentText>
+          <Row gap='0.5rem'>
+            <Button onClick={() => finishExternal('opened')}>Open link</Button>
+            <Button subtle onClick={() => finishExternal('cancelled')}>
+              Cancel
+            </Button>
+          </Row>
+        </ProxyConsentBar>
+      )}
+      {rowAsk && (
+        <ProxyConsentBar aria-label='Let this app edit rows'>
+          <ProxyConsentText>
+            <RowGrantText
+              appName={rowAsk.appName}
+              keepsExtras={rowAsk.keepsExtras}
+            />
+          </ProxyConsentText>
+          <Row gap='0.5rem'>
+            <Button onClick={allowRows}>Allow editing</Button>
+            <Button subtle onClick={declineRows}>
+              Not now
+            </Button>
+          </Row>
+        </ProxyConsentBar>
+      )}
+      {importerAsk && (
+        <AppImporterRun
+          key={String(importerAsk.id)}
+          ask={importerAsk}
+          drive={drive}
+          onDone={() => {
+            importerAskRef.current = undefined;
+            setImporterAsk(undefined);
+          }}
         />
       )}
       <Frame
@@ -543,20 +784,26 @@ async function appLabel(
   }
 }
 
-/** `pets` -> `Pets`, `github-issues` -> `Github Issues`. */
-function platformName(id: string) {
-  return id
-    .split('-')
-    .map(word => `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`)
-    .join(' ');
+interface RowAsk {
+  id: number | string;
+  appName: string;
+  /** Whether the app declares row extras the grant would cover (#1849). */
+  keepsExtras: boolean;
+  reply: (reply: HostReply) => void;
 }
 
 interface ConnectAsk {
   id: number | string;
   platform: string;
   reply: (reply: HostReply) => void;
-  /** Connections the person already has for this platform; unset while looking. */
+  /** Connections the person already has for this platform. */
   existing?: ProxyConnection[];
+}
+
+interface ExternalAsk {
+  id: number | string;
+  url: URL;
+  reply: (reply: HostReply) => void;
 }
 
 type MintResult = { ok: true; token: string } | { ok: false; error: string };
@@ -578,18 +825,14 @@ async function mintViewToken(
   const url = `${store.getServerUrl()}/plugin-view-token`;
 
   try {
-    const payload = JSON.stringify({ drive, plugin });
-    const headers = await signRequest(
+    const response = await fetch(
       url,
-      agent,
-      {},
-      { method: 'POST', body: payload },
+      await signedRequestInit(url, agent, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drive, plugin }),
+      }),
     );
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: payload,
-    });
 
     if (!response.ok) {
       return {
@@ -649,6 +892,16 @@ const ErrorText = styled.span`
   color: ${p => p.theme.colors.textLight};
   overflow-wrap: anywhere;
   min-width: 0;
+`;
+
+/** The destination host, in full: what the person is deciding about. */
+const Host = styled.strong``;
+
+/** The whole link, under the host, for anyone who wants to check the path. */
+const ExternalUrl = styled.span`
+  display: block;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
 `;
 
 const Problem = styled.p`

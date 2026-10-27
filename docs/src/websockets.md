@@ -14,6 +14,10 @@ truth for tag bytes and layouts) and `browser/lib/src/ws-v2.ts`
 (TypeScript). A golden-vector file pins the two together; see
 [Conformance](#conformance).
 
+## SYNC_PUSH durability
+
+The receiver stages accepted resource changes within one SYNC_PUSH frame and applies their resource, snapshot and query/search index projections together. Signed envelope validation remains separate. Intermediate acknowledgements indicate receipt; the final LAST frame (including an empty terminator) performs the durability flush before successful completion. A projection or flush failure rejects the import. Frame admission and cross-drive permissions are unchanged.
+
 ## Overview and transports
 
 A frame is `[tag: u8] [payload...]`. There is no envelope, no version
@@ -486,7 +490,18 @@ Everything else is open to an anonymous socket and gated per subject by
 | `11` | `CAUSALITY_CONFLICT` | A new Loro write lost against stored state. Keep the local edit; stop sending the same stale update until it is rebased. |
 | `12` | `BUSY` | The node is overloaded with writes, or the agent spent its write rate budget. Refused **before** any work; nothing landed. The message carries `retry_after_ms=<n>`. Not a failure: keep the edit, wait, send one merged delta, and do not retry over another transport. See [Write load and pacing](#write-load-and-pacing). |
 
-Codes `1` to `4` and `9` to `12` come from `classify_commit_error`, which pattern-matches the
+| `13` | `HOST_FEATURE_UNAVAILABLE` | A commit activating a plugin Installation (install, upgrade, resume) was refused because the release opens public endpoints this node's plugin-routes gates don't allow. Blocking, not terminal: the operator can open the gates. The message carries the typed problem (see below). Over HTTP, `/commit` answers `409`. |
+
+A refusal with structured fields appends them to the message: the sentence,
+then `\nproblem+json: `, then one JSON object with RFC 9457 fields (`type`,
+`detail` and the problem's own). The `/commit` Error resource's
+`description` carries the same string. A client splits at the marker and
+shows the sentence; one that doesn't know the marker still shows the sentence
+first. Code `13` carries the `host-feature-unavailable` problem this way:
+`{ type, feature, needed, compiled, level, surfaces, listeners, sidecars,
+detail }`, the same fields `/plugin-release-pin` answers with.
+
+Codes `1` to `4` and `9` to `13` come from `classify_commit_error`, which pattern-matches the
 underlying error text where the frame is built. Many other engine failures
 are **not** classified and go out as `UNKNOWN` with a descriptive message: an
 invalid frame of any kind, `No state`, a failed `GET` lookup,

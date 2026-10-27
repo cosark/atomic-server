@@ -143,6 +143,12 @@ export const ErrorCode = {
    *  message carries `retry_after_ms=<n>` (see `retryAfterMsFromMessage`).
    *  Not a failure: keep the local state, wait, then send one merged delta. */
   BUSY: 12,
+  /** A commit activating a plugin Installation (install, upgrade, resume)
+   *  was refused because the release opens public endpoints this node's
+   *  plugin-routes gates don't allow. The message carries the typed problem
+   *  (`AtomicError.problem`). Blocking, not terminal: the operator can open
+   *  the gates. */
+  HOST_FEATURE_UNAVAILABLE: 13,
 } as const;
 
 /** The `retry_after_ms=<n>` hint of a BUSY error message (or an HTTP error

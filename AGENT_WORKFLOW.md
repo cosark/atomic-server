@@ -39,8 +39,9 @@ That branch is moved forward from numbered candidates,
 - Host branches (`claude/plugin-*-host`, based on a candidate) come in with a
   `git merge --no-ff`.
 - `develop`-based PRs come in with `git cherry-pick -x` of **only the PR's own
-  commits**. Never merge `develop` into a candidate: `develop` has many commits
-  the candidates lack.
+  commits**. Candidates through 23 were maintained separately from `develop`. Candidate24
+  merges Candidate23 with develop at the owner's explicit request; future
+  candidates should retain both histories.
 - Note hand edits in the commit message. Put merge-resolution notes in PR
   comments.
 - Once the candidate's CI is green, post its SHA on atomic-plugins#227. The

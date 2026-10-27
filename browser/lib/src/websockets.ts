@@ -969,7 +969,10 @@ export class WSClient {
   }
 
   /** Sends a GET message for some resource over websockets. */
-  public async fetch(subject: string): Promise<Resource> {
+  public async fetch(
+    subject: string,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<Resource> {
     // Ensure auth has been kicked off before sending the GET. `authPromise`
     // starts as a resolved promise (not undefined), so `await this.authPromise`
     // alone is a no-op when nobody has called `authenticate()` yet — that
@@ -981,7 +984,11 @@ export class WSClient {
     // refetch on the next `setAgent`. `authenticate()` is idempotent: it
     // returns immediately if there's no agent or we've already authenticated
     // as the current one, and reuses the in-flight promise otherwise.
-    await this.authenticate();
+    if (opts.signal) {
+      await waitForConnection(this.authenticate(), opts.signal);
+    } else {
+      await this.authenticate();
+    }
 
     if (this.readyState !== WebSocket.OPEN) {
       throw new AtomicError(
@@ -998,10 +1005,13 @@ export class WSClient {
 
     return new Promise((resolve, reject) => {
       const close = perfSpan('ws.GET', { subject: subject.slice(0, 200) });
+      const abort = () =>
+        this.takePending(requestId)?.reject(
+          opts.signal?.reason ??
+            new RequestCancelledError('WebSocket GET cancelled'),
+        );
       const timer = setTimeout(() => {
-        this.pendingGets.delete(requestId);
-        close({ err: 'timeout' });
-        reject(
+        this.takePending(requestId)?.reject(
           new Error(`GET "${subject}" timed out after ${REQUEST_TIMEOUT}ms.`),
         );
       }, REQUEST_TIMEOUT);
@@ -1009,15 +1019,25 @@ export class WSClient {
       this.pendingGets.set(requestId, {
         subject,
         resolve: (r: Resource) => {
+          opts.signal?.removeEventListener('abort', abort);
           close('ok');
           resolve(r);
         },
         reject: (e: unknown) => {
+          opts.signal?.removeEventListener('abort', abort);
           close({ err: e instanceof Error ? e.message : String(e) });
           reject(e);
         },
         timer,
       });
+      opts.signal?.addEventListener('abort', abort, { once: true });
+
+      if (opts.signal?.aborted) {
+        abort();
+
+        return;
+      }
+
       this.sendBinary(encodeGet(requestId, this.wireSubject(subject)));
     });
   }
@@ -1440,6 +1460,11 @@ export class WSClient {
           if (resource) pending.resolve(resource);
           break;
         }
+
+        // A cancelled/timed-out GET is no longer an ingress source. In
+        // particular, an older query page must not replace the HTTP answer
+        // that recovered it. Real subscription pushes have request id zero.
+        if (msg.requestId && !(msg.flags & Flags.PUSH)) break;
 
         // Subscription push: same call, different `source`. The
         // commit-id dedup inside `applyIncoming` replaces the
