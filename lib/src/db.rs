@@ -885,12 +885,8 @@ impl Db {
                 last.get(&self.normalize_subject(resource.get_subject()).pure_id()) == Some(i)
             })
             .filter_map(|(_, (resource, _))| {
-                crate::import_identity::identity(resource).map(|(parent, id)| {
-                    format!(
-                        "import-identity:{}",
-                        serde_json::to_string(&(parent.pure_id(), id)).expect("identity key")
-                    )
-                })
+                crate::import_identity::identity(resource)
+                    .map(|(parent, id)| crate::import_identity::lock_key(&parent, &id))
             })
             .collect();
         identity_keys.sort();
@@ -973,10 +969,7 @@ impl Db {
         {
             Some(
                 self.subject_locks
-                    .lock(&format!(
-                        "import-identity:{}",
-                        serde_json::to_string(&(parent.pure_id(), &id))?
-                    ))
+                    .lock(&crate::import_identity::lock_key(&parent, &id))
                     .await,
             )
         } else {
@@ -4816,10 +4809,7 @@ impl Storelike for Db {
         let _import_guard = if let Some((parent, id)) = crate::import_identity::identity(resource) {
             let guard = self
                 .subject_locks
-                .lock(&format!(
-                    "import-identity:{}",
-                    serde_json::to_string(&(parent.pure_id(), &id))?
-                ))
+                .lock(&crate::import_identity::lock_key(&parent, &id))
                 .await;
             if let Some(found) = crate::import_identity::find_existing(self, &parent, &id).await? {
                 if Subject::from(found).pure_id() != resource.get_subject().pure_id() {
@@ -4903,10 +4893,7 @@ impl Storelike for Db {
             if let Some((parent, id)) = crate::import_identity::identity(new) {
                 let guard = self
                     .subject_locks
-                    .lock(&format!(
-                        "import-identity:{}",
-                        serde_json::to_string(&(parent.pure_id(), &id))?
-                    ))
+                    .lock(&crate::import_identity::lock_key(&parent, &id))
                     .await;
                 if let Some(found) = crate::import_identity::validate_candidate(
                     self,

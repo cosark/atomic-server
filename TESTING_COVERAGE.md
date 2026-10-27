@@ -2797,16 +2797,6 @@ snapshot. The watched scoped/sorted query regression adds its later 17 rows as
 one replica batch; the public bulk helper's counting test checks that its
 localId durability contract still uses one flush.
 
-`lib/examples/syncd_bulk_benchmark.rs` is an opt-in local acceptance benchmark,
-not a CI speed assertion. It requires an existing private 132-row export and a
-generated test-reader secret. It prepares normal signed binary sync frames,
-opens the empty receiver before timing, then measures loopback WebSocket
-transport, decoding, import, indexing and the final durable flush. Reader AUTH
-is measured; receiver import uses the pre-established source-owner principal,
-so this is not a full production peer-authentication integration test. It checks
-row membership, canonical projected properties, full CRDT deep state and causal
-hash, signed-envelope retention, SearchDocs and SearchPostings both live and
-after reopen. Raw Loro snapshot encodings are not compared byte for byte because
-equivalent imported snapshots may serialize differently. Crash durability is
-covered separately by the abort test above. Database startup, sender preparation
-and verification are excluded from its measured transfer interval.
+Manual acceptance measurements and their limits are recorded in PR #2361.
+The private-dataset harness is kept outside the repository; it is not a CI
+speed assertion. Crash durability is covered by the abort test above.
