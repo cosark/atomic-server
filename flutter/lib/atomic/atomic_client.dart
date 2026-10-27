@@ -556,8 +556,28 @@ class AtomicClient {
 
   /// One call from the embedded renderer's page to the store: a method and its
   /// arguments as JSON, answered as JSON (see `planning/flutter-resource-webview.md`).
-  static Future<String> embedCall(String method, String argsJson) =>
-      embed.embedCall(method: method, argsJson: argsJson);
+  static Future<String> embedCall(String method, String argsJson) async {
+    final answer = await embed.embedCall(method: method, argsJson: argsJson);
+    // A resource the page made or destroyed: the lists (the sidebar's tree,
+    // the home) read the store again now, not on the next 20 s tick.
+    if (method == 'applyCommit' && _addsOrRemoves(argsJson)) {
+      notifyStoreChanged();
+    }
+    return answer;
+  }
+
+  static bool _addsOrRemoves(String argsJson) {
+    try {
+      final args = jsonDecode(argsJson);
+      final commit = args is List && args.isNotEmpty ? args.first : null;
+      final map = commit is String ? jsonDecode(commit) : commit;
+      if (map is! Map) return false;
+      return map['https://atomicdata.dev/properties/isGenesis'] == true ||
+          map['https://atomicdata.dev/properties/destroy'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // ── 8. Known peers ──────────────────────────────────────────────────────
 

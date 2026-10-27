@@ -622,7 +622,7 @@ class DriveTreeState extends State<DriveTree> {
 
   void _storeChanged() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), reload);
+    _debounce = Timer(const Duration(milliseconds: 250), reload);
   }
 
   Future<void> _restoreOpen() async {
