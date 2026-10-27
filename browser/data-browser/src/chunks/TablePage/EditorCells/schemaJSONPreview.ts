@@ -17,6 +17,19 @@ function isObject(value: unknown): value is Schema {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Stop after two own keys; a truncated render does not identify a wrapper. */
+function singleOwnKey(value: Schema): string | undefined {
+  let found: string | undefined;
+
+  for (const key in value) {
+    if (!Object.hasOwn(value, key)) continue;
+    if (found !== undefined) return undefined;
+    found = key;
+  }
+
+  return found;
+}
+
 /** A deliberately small display vocabulary. Unsupported shapes keep their JSON. */
 export function schemaJSONPreview(
   value: unknown,
@@ -149,9 +162,21 @@ export function schemaJSONPreview(
       const properties = definition?.properties;
       if (readable && !isObject(properties)) throw unsupported;
 
+      // Wrappers may have several optional schema fields but only one value.
+      // Collapse them before rendering so truncation neither invents labels nor
+      // mistakes the first rendered field of a larger object for a wrapper.
+      const singleKey = readable ? singleOwnKey(current) : undefined;
+
+      if (singleKey !== undefined && typeof current[singleKey] !== 'boolean') {
+        const field =
+          isObject(properties) && Object.hasOwn(properties, singleKey)
+            ? properties[singleKey]
+            : undefined;
+
+        return render(current[singleKey], field, depth + 1);
+      }
+
       const fields: string[] = [];
-      let singleValue: string | undefined;
-      let singleBoolean = false;
 
       for (const key in current) {
         if (!Object.hasOwn(current, key)) continue;
@@ -159,7 +184,8 @@ export function schemaJSONPreview(
           isObject(properties) && Object.hasOwn(properties, key)
             ? properties[key]
             : undefined;
-        const rendered = render(current[key], field, depth + 1);
+        // Reserve the label before the child can consume the text budget.
+        // Boolean fields retain their labels rather than acquiring semantics.
         const label = readable
           ? text(
               isObject(field) && typeof field.title === 'string'
@@ -167,16 +193,9 @@ export function schemaJSONPreview(
                 : key,
             )
           : text(JSON.stringify(key));
+        const rendered = render(current[key], field, depth + 1);
         fields.push(`${label}: ${rendered}`);
-        singleValue = rendered;
-        singleBoolean = typeof current[key] === 'boolean';
         if (truncated) break;
-      }
-
-      // Wrappers may have several optional schema fields but only one value.
-      // Keep boolean labels so a checked box never acquires invented semantics.
-      if (readable && fields.length === 1 && !singleBoolean && !truncated) {
-        return singleValue ?? '{}';
       }
 
       return readable ? fields.join('\n') || '{}' : `{${fields.join(',')}}`;

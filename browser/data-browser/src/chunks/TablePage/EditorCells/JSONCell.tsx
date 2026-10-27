@@ -30,13 +30,19 @@ function JSONPreview({
   const propertyResource = useResource(property);
   const [schema] = useValue(propertyResource, server.properties.jsonSchema);
   const preview = schemaJSONPreview(value, schema);
+  const shortenedMessage =
+    'Preview shortened. Open edit dialog for complete JSON.';
 
   return (
-    <Preview>
+    <Preview
+      title={
+        preview.truncated
+          ? `${preview.text}\n${shortenedMessage}`
+          : preview.text
+      }
+    >
       {preview.text}
-      {preview.truncated && (
-        <small>Preview shortened. Open edit dialog for complete JSON.</small>
-      )}
+      {preview.truncated && <small> {shortenedMessage}</small>}
     </Preview>
   );
 }
@@ -123,11 +129,14 @@ const StyledDialogContent = styled(Dialog.Content)`
 `;
 
 const Preview = styled.div`
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   small {
-    display: block;
     opacity: 0.7;
   }
 `;

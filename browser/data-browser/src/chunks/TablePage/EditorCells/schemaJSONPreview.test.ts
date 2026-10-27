@@ -165,6 +165,43 @@ describe('schemaJSONPreview', () => {
     ).toBe('Second field: B\nfirst: A');
   });
 
+  it('still unwraps long prose when its nested value exhausts the budget', () => {
+    const result = schemaJSONPreview(
+      { prose: { content: `Original opening. ${'x'.repeat(10_000)}` } },
+      schema,
+    );
+
+    expect(result.readable).toBe(true);
+    expect(result.truncated).toBe(true);
+    expect(result.text).toMatch(/^Original opening\. x/);
+    expect(result.text).not.toContain('prose:');
+    expect(result.text).not.toContain('content:');
+    expect(result.text).toMatch(/…$/);
+    expect(result.text.length).toBeLessThanOrEqual(4000);
+  });
+
+  it('keeps a multi-field object label when its first long value exhausts the budget', () => {
+    const result = schemaJSONPreview(
+      {
+        first: `Original opening. ${'x'.repeat(10_000)}`,
+        second: 'Another field',
+      },
+      {
+        type: 'object',
+        properties: {
+          first: { type: 'string', title: 'First field' },
+          second: { type: 'string' },
+        },
+      },
+    );
+
+    expect(result.readable).toBe(true);
+    expect(result.truncated).toBe(true);
+    expect(result.text).toMatch(/^First field: Original opening\. x/);
+    expect(result.text).toMatch(/…$/);
+    expect(result.text.length).toBeLessThanOrEqual(4000);
+  });
+
   it('bounds long text, wide arrays and recursive values with an explicit flag', () => {
     const recursiveSchema = {
       type: 'object',

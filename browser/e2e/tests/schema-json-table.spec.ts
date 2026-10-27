@@ -1,7 +1,35 @@
-import { before, expect, test } from './session-fixtures';
+import { before, expect, test, type Locator } from './session-fixtures';
 import { waitForGridInteractive } from './test-utils';
 
 test.beforeEach(before);
+
+async function expectPreviewFitsRow(cell: Locator) {
+  const preview = cell.locator(':scope > div');
+  await expect(preview).toHaveCSS('white-space', 'nowrap');
+  await expect(preview).toHaveCSS('overflow', 'hidden');
+  await expect(preview).toHaveCSS('text-overflow', 'ellipsis');
+  const bounds = await preview.evaluate(element => {
+    const previewBox = element.getBoundingClientRect();
+    const cellBox = element.parentElement!.getBoundingClientRect();
+    const rowBox =
+      element.parentElement!.parentElement!.getBoundingClientRect();
+
+    return {
+      previewTop: previewBox.top,
+      previewBottom: previewBox.bottom,
+      previewLeft: previewBox.left,
+      previewRight: previewBox.right,
+      rowTop: rowBox.top,
+      rowBottom: rowBox.bottom,
+      cellLeft: cellBox.left,
+      cellRight: cellBox.right,
+    };
+  });
+  expect(bounds.previewTop).toBeGreaterThanOrEqual(bounds.rowTop);
+  expect(bounds.previewBottom).toBeLessThanOrEqual(bounds.rowBottom);
+  expect(bounds.previewLeft).toBeGreaterThanOrEqual(bounds.cellLeft);
+  expect(bounds.previewRight).toBeLessThanOrEqual(bounds.cellRight);
+}
 
 test('schema-backed JSON table bodies show readable prose and labeled checkbox states', async ({
   page,
@@ -83,7 +111,7 @@ test('schema-backed JSON table bodies show readable prose and labeled checkbox s
       propVals: {
         [name]: 'Schema preview samples',
         'https://atomicdata.dev/properties/classtype': rowClass.subject,
-        'https://atomicdata.dev/properties/tableColumnWidths': [200, 650],
+        'https://atomicdata.dev/properties/tableColumnWidths': [200, 400],
       },
     });
     await table.save();
@@ -110,6 +138,10 @@ test('schema-backed JSON table bodies show readable prose and labeled checkbox s
       ['Prose sample', prose],
       ['Checked sample', checked],
       ['Unchecked sample', unchecked],
+      [
+        'Long sample',
+        { prose: { content: 'Invented workshop notes. '.repeat(300) } },
+      ],
     ] as const) {
       const row = await store.newResource({
         parent: table.subject,
@@ -129,25 +161,34 @@ test('schema-backed JSON table bodies show readable prose and labeled checkbox s
     ).href,
   );
   await waitForGridInteractive(page);
+  await page.getByRole('button', { name: /Show \/ hide sidebar/ }).click();
+  await expect(page.getByTestId('sidebar')).toHaveCSS('opacity', '0');
 
   const proseCell = page
     .getByRole('row')
-    .filter({ hasText: 'Prose sample' })
+    .filter({ has: page.getByText('Prose sample', { exact: true }) })
     .locator('[aria-colindex="3"]');
   const checkedCell = page
     .getByRole('row')
-    .filter({ hasText: 'Checked sample' })
+    .filter({ has: page.getByText('Checked sample', { exact: true }) })
     .locator('[aria-colindex="3"]');
   const uncheckedCell = page
     .getByRole('row')
-    .filter({ hasText: 'Unchecked sample' })
+    .filter({ has: page.getByText('Unchecked sample', { exact: true }) })
+    .locator('[aria-colindex="3"]');
+  const longCell = page
+    .getByRole('row')
+    .filter({ has: page.getByText('Long sample', { exact: true }) })
     .locator('[aria-colindex="3"]');
 
   await expect(proseCell).toBeVisible();
   await expect(proseCell).toHaveText(
     "Sketch tomorrow's workshop. Bring paper and blue pencils.",
   );
-  await expect(proseCell.locator('div')).toHaveCSS('white-space', 'pre-wrap');
+  await expect(proseCell.locator(':scope > div')).toHaveAttribute(
+    'title',
+    "Sketch tomorrow's workshop.\nBring paper and blue pencils.",
+  );
   await expect(checkedCell).toHaveText(
     /^[•] Selected: ☑\s+Item: Pack the paper$/,
   );
@@ -161,6 +202,15 @@ test('schema-backed JSON table bodies show readable prose and labeled checkbox s
     );
   }
 
+  await expect(longCell.locator(':scope > div')).toHaveAttribute(
+    'title',
+    /Preview shortened\. Open edit dialog for complete JSON\.$/,
+  );
+
+  for (const cell of [proseCell, checkedCell, uncheckedCell, longCell]) {
+    await expectPreviewFitsRow(cell);
+  }
+
   await page.screenshot({
     path: testInfo.outputPath('schema-json-table-desktop.png'),
     fullPage: true,
@@ -171,9 +221,6 @@ test('schema-backed JSON table bodies show readable prose and labeled checkbox s
   // source object, including wrappers, field names and the actual boolean.
   await checkedCell.click();
   await checkedCell.press('Enter');
-  await page
-    .getByRole('button', { name: 'Open edit dialog', exact: true })
-    .click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: /^Edit / })).toBeVisible();
   const editor = dialog.locator('.cm-content');
@@ -199,4 +246,29 @@ test('schema-backed JSON table bodies show readable prose and labeled checkbox s
   await expect(checkedCell).toHaveText(
     /^[•] Selected: ☑\s+Item: Pack the paper$/,
   );
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId('sidebar')).toHaveCSS('opacity', '0');
+  await proseCell.scrollIntoViewIfNeeded();
+  await expect(proseCell).toBeVisible();
+  await expect(proseCell).toHaveText(
+    "Sketch tomorrow's workshop. Bring paper and blue pencils.",
+  );
+
+  for (const cell of [proseCell, checkedCell, uncheckedCell, longCell]) {
+    await expectPreviewFitsRow(cell);
+  }
+
+  await expect(checkedCell).toContainText('Selected: ☑');
+  await expect(uncheckedCell).toContainText('Selected: ☐');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath('schema-json-table-mobile.png'),
+    fullPage: true,
+    animations: 'disabled',
+  });
 });

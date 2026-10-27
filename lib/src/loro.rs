@@ -1113,7 +1113,10 @@ fn json_value_to_loro_map(json: &serde_json::Value, map: &loro::LoroMap) -> Atom
                         .map_err(|e| format!("Loro insert_container error: {e}"))?;
                     json_value_to_loro_map(val, &nested)?;
                 }
-                serde_json::Value::Null => {}
+                serde_json::Value::Null => {
+                    map.insert(key, loro::LoroValue::Null)
+                        .map_err(|e| format!("Loro map insert error: {e}"))?;
+                }
             }
         }
     }
@@ -1154,7 +1157,10 @@ fn json_value_to_loro_list_item(
                 .map_err(|e| format!("Loro push_container error: {e}"))?;
             json_value_to_loro_map(json, &nested)?;
         }
-        serde_json::Value::Null => {}
+        serde_json::Value::Null => {
+            list.push(loro::LoroValue::Null)
+                .map_err(|e| format!("Loro list push error: {e}"))?;
+        }
     }
     Ok(())
 }
@@ -1194,7 +1200,10 @@ fn insert_json_value_into_loro_list(
                 .map_err(|e| format!("Loro insert_container error: {e}"))?;
             json_value_to_loro_map(json, &nested)?;
         }
-        serde_json::Value::Null => {}
+        serde_json::Value::Null => {
+            list.insert(index, loro::LoroValue::Null)
+                .map_err(|e| format!("Loro list insert error: {e}"))?;
+        }
     }
     Ok(())
 }
@@ -1302,6 +1311,38 @@ mod test {
         let val = props.get(prop)?;
         let tag = datatypes.get(prop).map(|s| s.as_str());
         loro_value_to_atomic_value_tagged(val, tag)
+    }
+
+    #[test]
+    fn json_nulls_survive_snapshots_and_list_edits() {
+        let payload_prop = "https://atomicdata.dev/properties/payload";
+        let list_prop = "https://atomicdata.dev/properties/items";
+        let payload = serde_json::json!({
+            "nickname": null,
+            "nested": ["first", null, {"missing": null}, [null, "last"]]
+        });
+        let doc = AtomicLoroDoc::new();
+        doc.set_property(payload_prop, &Value::Json(payload.clone()))
+            .unwrap();
+        doc.set_property(
+            list_prop,
+            &Value::Json(serde_json::json!(["first", null, "last"])),
+        )
+        .unwrap();
+        let imported = AtomicLoroDoc::from_snapshot(&doc.export_snapshot()).unwrap();
+        assert!(
+            matches!(get_doc_property(&imported, payload_prop), Some(Value::Json(value)) if value == payload)
+        );
+        imported
+            .push_to_loro_list(list_prop, &serde_json::Value::Null)
+            .unwrap();
+        imported
+            .insert_into_loro_list(list_prop, 1, &serde_json::Value::Null)
+            .unwrap();
+        let reopened = AtomicLoroDoc::from_snapshot(&imported.export_snapshot()).unwrap();
+        assert!(
+            matches!(get_doc_property(&reopened, list_prop), Some(Value::Json(value)) if value == serde_json::json!(["first", null, null, "last", null]))
+        );
     }
 
     /// Documents WHY `content` must be `recommends`, not `requires`, on the

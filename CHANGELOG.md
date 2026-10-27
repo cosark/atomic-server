@@ -7,6 +7,8 @@ See [STATUS.md](server/STATUS.md) to learn more about which features will remain
 
 ## UNRELEASED
 
+- Preserve nested JSON nulls in Rust Loro object and array writes, including indexed array insertion (narrow backport from #2206).
+
 - Batch accepted SYNC_PUSH resource projections and indexes per frame, with one durable flush on LAST (including an empty terminator). Persistence failures now reject the sync. Backported from #2361 to the Atomic plugins candidate without changing admission rules or signed-envelope validation.
 
 - A plugin run no longer falls back to the server's agent for an app or
