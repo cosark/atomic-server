@@ -292,7 +292,7 @@ impl std::fmt::Display for Refusal {
 /// First path segments `server/src/routes.rs` (and the website control
 /// routes) serve on the API origin. A test keeps this list in step with
 /// `routes.rs`.
-pub const SERVER_ROUTES: [&str; 20] = [
+pub const SERVER_ROUTES: [&str; 25] = [
     "app-after-commit",
     "app-agent",
     "app-row-grant",
@@ -305,8 +305,13 @@ pub const SERVER_ROUTES: [&str; 20] = [
     "drive-usage",
     "export",
     "forget-peer",
+    "form",
+    "genesis",
     "history-attribution",
+    "host",
     "iroh-sync",
+    "mcp",
+    "oauth",
     "plugin-secret",
     "search",
     "upload",
@@ -1906,13 +1911,16 @@ mod tests {
     /// under one of [`SERVER_ROUTE_PREFIXES`].
     #[test]
     fn server_routes_cover_routes_rs() {
-        let sources = [
-            include_str!("../routes.rs"),
-            include_str!("../handlers/website.rs"),
-        ];
+        let routes = include_str!("../routes.rs");
+        let website = include_str!("../handlers/website.rs");
         let mut found = Vec::new();
-        for source in sources {
-            for call in ["web::resource(\"/", "web::scope(\"/"] {
+        // Website resources are nested below its scope, so only the scope's
+        // first segment occupies the server's top-level path space.
+        for (source, calls) in [
+            (routes, &["web::resource(\"/", "web::scope(\"/"][..]),
+            (website, &["web::scope(\"/"][..]),
+        ] {
+            for call in calls {
                 for piece in source.split(call).skip(1) {
                     let first: String = piece
                         .chars()
@@ -1924,6 +1932,27 @@ mod tests {
                 }
             }
         }
+        // The single-handler macros register literal paths without calling
+        // web::resource at the call site (including develop's /host/call).
+        for line in routes.lines().map(str::trim_start) {
+            let path = ["", "get ", "post ", "put ", "patch ", "delete "]
+                .iter()
+                .find_map(|prefix| line.strip_prefix(prefix)?.strip_prefix('"'));
+            if let Some(path) = path.filter(|path| path.starts_with('/')) {
+                if let Some((path, rest)) = path.split_once('"') {
+                    if rest.trim_start().starts_with("=>") {
+                        found.push(
+                            path.trim_start_matches('/')
+                                .split('/')
+                                .next()
+                                .unwrap()
+                                .into(),
+                        );
+                    }
+                }
+            }
+        }
+        assert!(found.iter().any(|first| first == "host"));
         assert!(found.len() > 20, "{found:?}");
         for first in found {
             // The `404` for unclaimed names. Plugins claim those names in
@@ -2374,6 +2403,11 @@ mod tests {
             "/commit",
             "/ws",
             "/search",
+            "/form/{id}",
+            "/genesis",
+            "/host/call",
+            "/mcp",
+            "/oauth/token",
             "/plugin-run/x",
             "/integration-actions",
             "/_routes/x",

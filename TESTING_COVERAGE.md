@@ -285,7 +285,8 @@ yet), and the upgrade review's diff of surfaces.
 Plugin route registry (#1714): `server/src/plugins/route_registry.rs` unit
 tests cover slugs, `{param}`/`{*rest}` matching, both mounts, reserved paths
 (`/.well-known/` names, the API origin outside `/_routes/<slug>/`, and a check
-that every route in `routes.rs` is on the reserved list), collisions naming
+that direct and macro-registered routes in `routes.rs` are on the reserved list,
+including develop's forms, genesis, host calls, MCP and OAuth endpoints), collisions naming
 the other installation, pause/revoke/degraded answers and level `off`.
 `handlers/plugin_routes.rs` runs real installs through the app: 200 on a
 match, 405, 503 + `Retry-After`, 410 after revoke, the routes host, refusal
