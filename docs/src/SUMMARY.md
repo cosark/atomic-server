@@ -59,6 +59,18 @@
     - [Lib](rust-lib.md)
   - [Flutter / Dart (native apps)](flutter.md)
 
+# Atomic Sync
+
+- [Overview](atomic-sync/overview.md)
+  - [How sync works: the model](sync.md)
+  - [Transports](atomic-sync/transports.md)
+  - [Drive reconciliation](atomic-sync/drive-reconciliation.md)
+  - [Permissions and identity](atomic-sync/permissions-and-identity.md)
+  - [Remote peers](atomic-sync/remote-peers.md)
+  - [Building on the sync engine](atomic-sync/building-on-the-sync-engine.md)
+  - [Wire protocol: WebSocket and Iroh](websockets.md)
+  - [Browser peer sync (WebRTC)](browser-peer-sync.md)
+
 # Guides
 
 - [Build a local-first app with @tomic/lib](local-first-guide/1-index.md)
@@ -105,9 +117,6 @@
   - [Hierarchy and authorization](hierarchy.md)
   - [Authentication](authentication.md)
   - [Invitations and sharing](invitations.md)
-  - [Atomic Sync](sync.md)
-    - [Wire protocol: WebSocket and Iroh](websockets.md)
-    - [Browser peer sync (WebRTC)](browser-peer-sync.md)
   - [Commits (signed writes)](commits/intro.md)
     - [Concepts](commits/concepts.md)
     - [Compared to](commits/compare.md)
