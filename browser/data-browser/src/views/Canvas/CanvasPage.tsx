@@ -2771,6 +2771,11 @@ const CanvasArea = styled.div<{
   min-height: 400px;
   overflow: hidden;
   touch-action: none;
+  /* A finger held or dragged on iOS selected the whole drawing (the page's
+     text selection and callout) instead of drawing a stroke. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   background: ${p => p.theme.colors.bg};
   cursor: ${p =>
     p.$panMode === 'ready'
