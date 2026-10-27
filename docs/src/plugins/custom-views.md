@@ -130,6 +130,31 @@ A plugin whose view edits schema (a form builder, a table editor) can declare th
 
 Drive apps follow a stricter rule: they read what the signed-in person can read, and write only under their own app resource, signed by the app's own agent.
 
+### Confirmed app navigation and file imports
+
+`await store.openExternal(url)` asks in host UI before opening an absolute
+HTTP(S) link in a new tab. The host names the complete destination host and
+URL, refuses credentials in the URL, and opens with `noopener,noreferrer`.
+It returns `{ status: 'opened' | 'cancelled' }`; the frame gains no popup
+permission.
+
+`await store.openResource(subject)` first reads the resource through the
+person's store, then asks before leaving the app. It refuses non-resource
+identifiers and returns `{ status: 'opened' | 'cancelled', subject }`.
+These confirmed operations share HostUI's one-question rule. The existing
+`store.ui.openResource(subject)` API keeps its immediate navigation behavior.
+
+An app shown as a view of a table can call `await store.importer.run()` to
+ask the host to choose a file, or pass `{ file: { name, mediaType?, text } }`.
+The host resolves the importer whose Set up created the table, checks its
+stored configuration and file-size limit, then shows a confirmation and the
+ordinary import review. Only applying that review writes anything. The result
+reports `applied` counts, `cancelled`, `nothing`, or `blocked` with errors.
+An app on its own page cannot pick another importer to run. This host's
+`accepts` contract is text-only; a base64/binary request is refused before
+preview. Confirmation and review requests wait for the person without a
+one-minute timeout.
+
 ### Host UI
 
 An app may call `await store.proxy.disconnect({ platform })` to give up its

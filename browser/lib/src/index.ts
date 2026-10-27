@@ -383,6 +383,7 @@ export * from './import-reference-review.js';
 
 export {
   destinationTablesFor,
+  destinationOwnerOf,
   provisionDestination,
   type DestinationConfig,
   type DestinationTable,

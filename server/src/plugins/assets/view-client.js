@@ -54,6 +54,9 @@ const ASKS_THE_PERSON = new Set([
   'pickFile',
   'form',
   'proxyConnect',
+  'openExternal',
+  'openResourceConfirmed',
+  'runImporter',
 ]);
 
 /** A MouseEvent or `{ x, y }`, as a point in this frame. */
@@ -448,6 +451,21 @@ export const store = {
     async environment() {
       return send('environment', {});
     },
+  },
+
+  /** Ask the person before opening an http(s) link in a separate tab. */
+  async openExternal(url) {
+    return send('openExternal', { url });
+  },
+
+  /** Confirm leaving the frame for a resource the person can already read. */
+  async openResource(subject) {
+    return send('openResourceConfirmed', { subject });
+  },
+
+  importer: {
+    /** Ask the host to run the current table's importer, then review before applying. */
+    async run(args = {}) { return send('runImporter', { ...args }); },
   },
 
   proxy: {

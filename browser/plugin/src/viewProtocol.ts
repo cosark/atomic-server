@@ -34,6 +34,7 @@ export type ViewOperation =
   | 'proxyConnect'
   /** Give up this app's delegation, keeping the shared connection. */
   | 'proxyDisconnect'
+  | 'runImporter'
   /** A function another app in the drive exports (`POST /host/call`). */
   | 'call'
   /**
@@ -46,6 +47,8 @@ export type ViewOperation =
   | 'resourceMenu'
   | 'share'
   | 'openResource'
+  | 'openExternal'
+  | 'openResourceConfirmed'
   | 'environment'
   /** Atomic's own form for a new resource of a class. */
   | 'form'
@@ -113,6 +116,7 @@ export function isViewRequest(value: unknown): value is ViewRequest {
       'proxyConnections',
       'proxyConnect',
       'proxyDisconnect',
+      'runImporter',
       'call',
       'confirm',
       'toast',
@@ -120,6 +124,8 @@ export function isViewRequest(value: unknown): value is ViewRequest {
       'resourceMenu',
       'share',
       'openResource',
+      'openExternal',
+      'openResourceConfirmed',
       'environment',
       'form',
       'apply',

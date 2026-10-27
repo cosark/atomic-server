@@ -636,3 +636,51 @@ it('forgets its capabilities for a platform once disconnected', async () => {
   });
   await expect(pending).rejects.toThrow('delegated to this app');
 });
+
+it.each(['packaged', 'generated'])(
+  'confirmed navigation waits for the person: %s',
+  async kind => {
+    vi.useFakeTimers();
+    const f = frame();
+    vi.stubGlobal('window', f.window);
+    const { ViewStore } = await import('./store');
+    const store = kind === 'packaged' ? new ViewStore() : generatedStore(f);
+    const external = store.openExternal('https://example.com/path');
+    const resource = store.openResource('atomic:row');
+    const importer = store.importer.run();
+    const requests = f.parent.postMessage.mock.calls.map(
+      ([request]) => request,
+    );
+    expect(requests.map(request => request.op)).toEqual([
+      'openExternal',
+      'openResourceConfirmed',
+      'runImporter',
+    ]);
+    expect(requests.every(isViewRequest)).toBe(true);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    f.reply({
+      type: 'atomic.view.response',
+      version: 1,
+      id: requests[0].id,
+      result: { status: 'cancelled' },
+    });
+    f.reply({
+      type: 'atomic.view.response',
+      version: 1,
+      id: requests[1].id,
+      result: { status: 'opened', subject: 'atomic:row' },
+    });
+    f.reply({
+      type: 'atomic.view.response',
+      version: 1,
+      id: requests[2].id,
+      result: { status: 'cancelled', importer: 'atomic:importer' },
+    });
+    expect(await importer).toEqual({
+      status: 'cancelled',
+      importer: 'atomic:importer',
+    });
+    expect(await external).toEqual({ status: 'cancelled' });
+    expect(await resource).toEqual({ status: 'opened', subject: 'atomic:row' });
+  },
+);

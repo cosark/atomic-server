@@ -39,6 +39,9 @@ export interface HostRequest {
   propVals?: Record<string, unknown>;
   /** `save`: properties the view removed, sent apart from `propVals`. */
   remove?: string[];
+  /** `runImporter`: untrusted frame data, validated before a preview. */
+  file?: unknown;
+  importer?: string;
   // `proxyCapability` / `proxyConnections`
   platform?: string;
   connectionId?: string;
@@ -327,6 +330,11 @@ export async function handleRequest(
 
       return { status: 'disconnected', platform, connectionIds };
     }
+
+    case 'runImporter':
+      throw new Error(
+        'Running an importer needs host confirmation and review.',
+      );
 
     // Subscriptions are wired by the caller, which owns the frame it has to
     // post back to.

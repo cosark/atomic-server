@@ -1,3 +1,20 @@
+Confirmed app navigation: mounted `HostUI/hostNavigation.test.tsx` covers
+no opening/navigation before confirmation, cancellation, punycode display,
+safe new-tab flags, unreadable and non-resource refusal, late-read
+supersession, and compatibility of `store.ui.openResource`. External URL
+validation has scheme/credential/length tests. `viewProtocol.test.ts` covers
+both SDKs waiting for confirmed navigation/importer operations. The focused
+`apps.spec.ts` browser journey covers host confirmation, popup isolation and
+desktop/mobile screenshots.
+
+App-run imports: `appImporter.test.ts` checks the table-owned importer,
+configuration, file limits, foreign importer refusal, text-only boundary and
+summary. `plugin-destination.test.ts` checks actual destination ownership.
+`AppImporterRun.test.tsx` checks that preview starts only after confirmation,
+and the reply waits for the review callback, plus cancellation and refusal.
+`app-importer.spec.ts` is the browser journey for preview/review/apply, host
+picker cancellation and foreign importer refusal.
+
 App-only proxy disconnection: `proxyConnections.test.ts` verifies every v2
 signature, removal of only the app's delegations, preservation of shared
 connections and another app's delegation, invalid-platform refusal and
