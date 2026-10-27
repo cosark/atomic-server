@@ -64,7 +64,12 @@ describe('welcomeCall', () => {
     await welcomeCall(t.deps, 3, 'did:ad:personal');
 
     expect(t.posted).toEqual([
-      { method: 'welcomeResult', callId: 3, ok: false, payload: 'no space left' },
+      {
+        method: 'welcomeResult',
+        callId: 3,
+        ok: false,
+        payload: 'no space left',
+      },
     ]);
   });
 });
