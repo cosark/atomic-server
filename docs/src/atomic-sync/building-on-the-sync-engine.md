@@ -1,7 +1,8 @@
 {{#title Building an app on the Atomic Sync engine}}
 # Building on the sync engine
 
-The sync engine is a library, so you can use it without running the Atomic app.
+Every developer who builds a multi-device app ends up solving the same things: where to store data, who is allowed to change it, how to merge edits, how to get it to the other devices.
+The sync engine is a library so you don't have to, and you can use it without running the Atomic app.
 You write against a local store, and identity, signing, permissions, history and sync come with it.
 
 ## In the browser or Node: `@tomic/lib`
@@ -22,7 +23,8 @@ The Flutter SDK wraps the same crate. See [Flutter / Dart](../flutter.md).
 
 ## What the engine does not decide
 
-The engine converges copies and enforces who may write. As the [overview](overview.md) says, merging does not check business rules. Your app still decides:
+The engine converges copies and enforces who may write. It can't know what your data _means_.
+As the [overview](overview.md) says, merging does not check business rules, so your app still decides:
 
 - what counts as the same record, and how rejected or ambiguous changes are reviewed;
 - key backup and recovery, since an identity is a key;

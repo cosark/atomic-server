@@ -1,11 +1,13 @@
 {{#title Permissions and identity during Atomic Sync}}
 # Permissions and identity during sync
 
-Syncing does not bypass access control. Every node that receives data decides for itself what it accepts and what it sends, using the same rules on every transport.
+Syncing your data to other machines should never mean handing it to everyone who can reach those machines.
+So syncing does not bypass access control. Every node that receives data decides for itself what it accepts and what it sends, using the same rules on every transport.
 
 ## Who you are: Agents and signatures
 
 An [Agent](../agents.md) is an Ed25519 key pair, identified by its public key (`atomic:agent:<publicKey>`).
+There's no account to sign up for: you prove who you are by signing.
 Two things are signed during sync:
 
 - **Connection proof (`AUTH`).** When a link opens, the client sends its Agent, its public key, a timestamp and a signature over `"{requestedSubject} {timestamp}"`. The proof is rejected if the timestamp is more than five minutes old, or if `requestedSubject` does not name the node being asked. For a WebSocket, that is the server's origin, plus a one-time challenge nonce that the server sends first. For Iroh, it is the Drive about to be synced. A proof for one place cannot be replayed at another. See [Authentication](../websockets.md#authentication).
@@ -26,13 +28,14 @@ The receiving node applies them at every step:
 
 ## Pairing introduces, it does not authorize
 
-Scanning a QR code or opening a peer link tells a device where to connect. A node id is a route, not a credential, and the peer still has to prove an Agent.
+Scanning a QR code or opening a peer link tells a device where to connect. A node id is a _route_, not a credential, and the peer still has to prove an Agent.
+So "I paired my phone" is not the same as "my phone can see everything".
 A peer you paired with deliberately is served whatever your node may read, never more.
 Dialing a peer also does not give that peer any rights on your node. To give another person access, [share](../invitations.md) the Drive with their Agent.
 
 ## Servers and admission
 
-A server is held to the same checks. It cannot make up changes in your name, because it has no key to sign them.
+A server is held to the same checks. It can't make up changes in your name, because it has no key to sign them.
 A node can also limit which Drives it accepts at all. By default a node accepts new Drives from any Agent that passes the checks above. An operator can restrict that, for example to one owner. See [Putting your server on the internet](../atomicserver/installation.md#putting-your-server-on-the-internet).
 
 ## Limits to be aware of
