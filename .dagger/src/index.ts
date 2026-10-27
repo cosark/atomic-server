@@ -950,8 +950,11 @@ export class AtomicServer {
           // light`, since `ort`'s missing-prebuilt-binary gap is musl-cuda
           // specific). Matches the apt list already on `rustBuild()` /
           // `rustChecksContainer()` — this container just never had it.
-          .withExec(['apt-get', 'update', '-qq'])
-          .withExec(['apt', 'install', '-y', 'protobuf-compiler']),
+          .withExec([
+            'sh',
+            '-c',
+            'apt-get update -qq && apt-get install -y protobuf-compiler',
+          ]),
         CARGO_HOME_BOOKWORM,
       )
         .withFile('/code/Cargo.toml', this.source.file('Cargo.toml'))
@@ -1493,8 +1496,11 @@ export class AtomicServer {
       dag
         .container()
         .from(image)
-        .withExec(['apt-get', 'update', '-qq'])
-        .withExec(['apt', 'install', '-y', 'nasm', 'protobuf-compiler']),
+        .withExec([
+          'sh',
+          '-c',
+          'apt-get update -qq && apt-get install -y nasm protobuf-compiler',
+        ]),
       CARGO_HOME_MUSL,
     )
       .withExec(['rustup', 'target', 'add', target])
@@ -1725,14 +1731,17 @@ export class AtomicServer {
         dag
           .container()
           .from(image)
-          .withExec(['apt-get', 'update', '-qq'])
           // `protobuf-compiler` gives `protoc`, needed by `lance-encoding`'s
           // build script (a transitive dep via the vector-search feature) —
           // without it `cargo fetch`-triggered builds under this container
           // (nextest, clippy) fail with "Could not find `protoc`". Matches
           // `rustBuild()`'s apt list; this container split off from it later
           // and the package was missed.
-          .withExec(['apt', 'install', '-y', 'nasm', 'protobuf-compiler']),
+          .withExec([
+            'sh',
+            '-c',
+            'apt-get update -qq && apt-get install -y nasm protobuf-compiler',
+          ]),
         CARGO_HOME_MUSL,
       )
         .withExec(['rustup', 'target', 'add', 'x86_64-unknown-linux-musl'])

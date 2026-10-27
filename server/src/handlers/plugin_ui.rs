@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use actix_web::{http::header, web, HttpResponse};
 use atomic_lib::{
     db::plugin_meta::PluginMetaKey, hierarchy::check_read, urls, Storelike, Subject, Value,
@@ -8,9 +6,8 @@ use base64::{engine::general_purpose, Engine as _};
 
 use crate::{
     appstate::AppState,
-    context::RequestContext,
     errors::{AtomicServerError, AtomicServerResult},
-    helpers::get_client_agent,
+    helpers::get_client_agent_for_signed_url,
 };
 
 #[derive(serde::Deserialize, Debug)]
@@ -113,32 +110,23 @@ fn split_plugin_name(plugin: &str) -> AtomicServerResult<(&str, &str)> {
     Ok((namespace, name))
 }
 
-pub fn get_plugin_file_path(
+/// A file of the release an Installation pins (`ui.js`, `ui.css`), read from
+/// its package.
+async fn release_file(
     appstate: &AppState,
-    drive_subject: &str,
-    plugin_name: &str,
+    installation: &atomic_lib::Resource,
     format: &str,
-) -> AtomicServerResult<PathBuf> {
-    split_plugin_name(plugin_name)?;
-    let encoded_drive = general_purpose::URL_SAFE.encode(drive_subject);
-
-    let plugin_dir = appstate
-        .config
-        .plugin_path
-        .join("class-extenders")
-        .join("scoped")
-        .join(encoded_drive);
-
-    let extension = match format {
-        "js" => "js",
-        "css" => "css",
-        _ => return Err("Invalid format".into()),
+) -> AtomicServerResult<Option<Vec<u8>>> {
+    if !matches!(format, "js" | "css") {
+        return Err("Invalid format".into());
+    }
+    let Ok(Value::String(release_id)) = installation.get(urls::RELEASE_ID) else {
+        return Ok(None);
     };
-
-    let file_name = format!("{}.ui.{}", plugin_name, extension);
-    let file_path = plugin_dir.join(file_name);
-
-    Ok(file_path)
+    Ok(
+        crate::plugins::release::package_file(&appstate.store, release_id, &format!("ui.{format}"))
+            .await?,
+    )
 }
 
 /// Generates a random CSP nonce for the plugin iframe document.
@@ -380,9 +368,7 @@ pub async fn handle_plugin_ui(
     // as the same agent that fetches the page — signed headers or the
     // session cookie, like any other handler.
     let store = &appstate.store;
-    let origin = RequestContext::new(&req, &appstate).origin;
-    let full_url = format!("{}{}", origin, req.uri());
-    let for_agent = get_client_agent(req.headers(), &appstate, &full_url).await?;
+    let for_agent = get_client_agent_for_signed_url(&req, &appstate).await?;
     let Some(meta) = store.get_plugin_meta(&PluginMetaKey::new(drive_subject, namespace, name))?
     else {
         return Ok(HttpResponse::NotFound().body("Plugin UI file not found"));
@@ -392,16 +378,10 @@ pub async fn handle_plugin_ui(
         .await?;
     atomic_lib::hierarchy::check_read(store, &plugin_resource, &for_agent).await?;
 
-    let file_path = get_plugin_file_path(&appstate, drive_subject, plugin_name, format)?;
-
-    if !file_path.exists() {
-        // No path in the body: the plugin directory layout is not the
-        // caller's business.
+    // No path in the body: the plugin's layout is not the caller's business.
+    let Some(content) = release_file(&appstate, &plugin_resource, format).await? else {
         return Ok(HttpResponse::NotFound().body("Plugin UI file not found"));
-    }
-
-    let content = std::fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read plugin UI file: {}", e))?;
+    };
 
     let content_type = match format.as_str() {
         "js" => "application/javascript",
@@ -532,9 +512,7 @@ pub async fn handle_plugin_list(
     let store = &appstate.store;
     let drive_subject = &query.drive;
 
-    let origin = RequestContext::new(&req, &appstate).origin;
-    let full_url = format!("{}{}", origin, req.uri());
-    let for_agent = get_client_agent(req.headers(), &appstate, &full_url).await?;
+    let for_agent = get_client_agent_for_signed_url(&req, &appstate).await?;
 
     let plugins = store.get_class_extenders_on_drive(drive_subject);
     let mut plugin_list: Vec<UIPluginListItem> = vec![];
@@ -564,8 +542,6 @@ pub async fn handle_plugin_list(
         };
 
         let plugin_name = format!("{}.{}", namespace, name);
-        let js_file_path = get_plugin_file_path(&appstate, drive_subject, &plugin_name, "js")?;
-        let css_file_path = get_plugin_file_path(&appstate, drive_subject, &plugin_name, "css")?;
 
         let Some(meta) =
             store.get_plugin_meta(&PluginMetaKey::new(drive_subject, namespace, name))?
@@ -574,7 +550,7 @@ pub async fn handle_plugin_list(
             continue;
         };
 
-        if !js_file_path.exists() {
+        if release_file(&appstate, &resource, "js").await?.is_none() {
             continue;
         }
 
@@ -582,7 +558,7 @@ pub async fn handle_plugin_list(
             plugin: plugin_name,
             classes: plugin.classes,
             ui_manifest: PluginUIManifest {
-                css: css_file_path.exists(),
+                css: release_file(&appstate, &resource, "css").await?.is_some(),
             },
             resource: meta.subject,
         });
