@@ -1,6 +1,11 @@
 {{#title Why Atomic: a personal data store, a workspace and a sync engine}}
 # Why Atomic
 
+The web was meant to be a decentralized network that helps people share information, but today a handful of companies control where our data lives.
+Their services are often free and work well together, but they are built to _lock you in_, and their revenue models (like selling your attention to advertisers) don't line up with what you want.
+Atomic exists to give you control over your data again: it lives on your devices, it is yours to take elsewhere, and nobody needs to be trusted to hold it.
+Read the full argument in the [motivation](motivation.md).
+
 Atomic is one piece of software with three faces.
 Which one you meet first depends on what you came for.
 

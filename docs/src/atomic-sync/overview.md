@@ -1,10 +1,14 @@
 {{#title Atomic Sync overview: every device holds a full copy}}
 # Atomic Sync overview
 
-Most apps keep your data on somebody else's server, and the app on your phone is just a window onto it.
-That works until the connection drops, the company changes its mind, or two people edit the same thing at the same time.
-Atomic Sync takes the opposite approach: every device that uses a [Drive](../identifiers.md#drive-identity) keeps a full local copy and reads and writes it directly.
-Sync runs in the background and passes changes between those copies, so the copies stay in agreement.
+Sync exists so that your data lives on _your_ devices, and you stay in control of it.
+Most apps keep your data on one company's server, and the app on your phone is just a window onto it.
+That makes it hard to leave, and it gives the company a reason to keep it that way: a business model built on holding your data hostage, or on selling your attention.
+We argue in the [motivation](../motivation.md) that this is what vendor lock-in does, and [local-first](../local-first.md) is how we get out of it.
+
+With Atomic Sync, every device that uses a [Drive](../identifiers.md#drive-identity) keeps a full local copy and reads and writes it directly.
+You're not tied to one vendor's cloud, because a server is just one more device that holds a copy.
+Sync runs in the background and passes changes between those copies, so they stay in agreement.
 
 ## The idea in five points
 

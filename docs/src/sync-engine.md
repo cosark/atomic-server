@@ -1,8 +1,9 @@
 {{#title Local-first Sync Engine: build apps whose data syncs without a backend}}
 # Local-first Sync Engine
 
-The engine that keeps the workspace in agreement across devices is a library you can build on.
-You write an app against a local store; persistence, identity, permissions, history and sync come with it.
+Most apps keep your data on their own server, which makes it hard for you to leave and gives them a reason to keep it that way.
+The engine that keeps the workspace in agreement across devices is built so that your data lives on _your_ devices instead, and you stay in control of it ([why](motivation.md#give-people-more-control-over-their-data)).
+It is also a library you can build on: you write an app against a local store, and persistence, identity, permissions, history and sync come with it.
 
 ## What the engine does
 
