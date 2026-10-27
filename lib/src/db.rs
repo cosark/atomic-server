@@ -1523,10 +1523,34 @@ impl Db {
             .and_then(|v| String::from_utf8(v).ok())
     }
 
+    /// Every drive that has been the active one on this device, oldest first.
+    fn opened_drives(&self) -> Vec<String> {
+        self.kv
+            .get(trees::Tree::PluginMeta, b"opened_drives")
+            .ok()
+            .flatten()
+            .and_then(|v| serde_json::from_slice(&v).ok())
+            .unwrap_or_default()
+    }
+
     /// Set the active drive subject. Persisted in the database.
     pub fn set_active_drive(&self, drive: &str) -> AtomicResult<()> {
         self.kv
             .insert(trees::Tree::PluginMeta, b"active_drive", drive.as_bytes())?;
+        // Remember every drive that was ever opened: one made by a client
+        // (the Welcome drive) is on no `drives` list, and would drop out of
+        // `list_drives` as soon as another drive became the active one.
+        let mut opened = self.opened_drives();
+        if !opened.iter().any(|d| d == drive) {
+            opened.push(drive.to_string());
+            self.kv.insert(
+                trees::Tree::PluginMeta,
+                b"opened_drives",
+                serde_json::to_string(&opened)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            )?;
+        }
         // Durable now: with Durability::None a freshly adopted drive is rolled
         // back on the next app kill, and the auto-connect loop (which needs an
         // active drive) then has nothing to reconnect to. Rare write; cheap.
@@ -1825,6 +1849,12 @@ impl Db {
         if let Some(active) = self.get_active_drive() {
             if !subjects.contains(&active) {
                 subjects.push(active);
+            }
+        }
+        // Drives opened here that no list names (the Welcome drive).
+        for opened in self.opened_drives() {
+            if !subjects.contains(&opened) {
+                subjects.push(opened);
             }
         }
 

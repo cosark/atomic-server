@@ -6090,3 +6090,25 @@ async fn bring_along_finds_drives_listed_on_the_agent() {
     let brought = db.bring_along(&a, &b).await.unwrap();
     assert_eq!(brought.drives, vec![drive]);
 }
+
+/// A drive made by a client (the Welcome drive) is on no `drives` list. It
+/// showed in the drive list only while it was the active drive, and vanished
+/// the moment another one was opened.
+#[tokio::test]
+async fn opened_drive_stays_listed_after_another_becomes_active() {
+    let db = Db::init_temp("opened_drive_stays_listed").await.unwrap();
+    let welcome = "did:ad:welcome-drive-not-on-any-list";
+    db.set_active_drive(welcome).unwrap();
+    let other = db.create_drive("Mine").await.unwrap();
+    assert_eq!(db.get_active_drive().as_deref(), Some(other.as_str()));
+
+    let subjects: Vec<String> = db
+        .list_drives()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|d| d.subject)
+        .collect();
+    assert!(subjects.contains(&welcome.to_string()), "{subjects:?}");
+    assert!(subjects.contains(&other), "{subjects:?}");
+}
