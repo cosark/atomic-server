@@ -57,11 +57,10 @@ paths, features, dependencies, and behavior remain unchanged. A public Rust
 path alone does not make a labeled internal API part of the product contract.
 Existing first-party consumers still need to be checked when internals change.
 
-The application-facing node API is still being completed: `AtomicNode` currently
-opens through `from_db`, and some operations require its `db()` accessor.
-Both helpers expose the internal `Db` type. A public construction API that
-avoids `Db` is not implemented yet; this documentation does not claim otherwise.
-Existing adapters use these compatibility paths in the meantime.
+For node construction and available storage backends, see the `AtomicNode`
+methods in the generated API reference. Existing first-party adapters also use
+`from_db` and `db()`, which expose the internal `Db` type and remain compatibility
+paths rather than part of the application API contract.
 
 ## Cargo features
 
