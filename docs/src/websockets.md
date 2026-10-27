@@ -14,6 +14,10 @@ truth for tag bytes and layouts) and `browser/lib/src/ws-v2.ts`
 (TypeScript). A golden-vector file pins the two together; see
 [Conformance](#conformance).
 
+## SYNC_PUSH durability
+
+The receiver stages accepted resource changes within one SYNC_PUSH frame and applies their resource, snapshot and query/search index projections together. Signed envelope validation remains separate. Intermediate acknowledgements indicate receipt; the final LAST frame (including an empty terminator) performs the durability flush before successful completion. A projection or flush failure rejects the import. Frame admission and cross-drive permissions are unchanged.
+
 ## Overview and transports
 
 A frame is `[tag: u8] [payload...]`. There is no envelope, no version

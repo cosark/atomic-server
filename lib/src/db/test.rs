@@ -4,7 +4,519 @@ use super::*;
 use ntest::timeout;
 
 use std::sync::Mutex;
+
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Arc,
+};
 use tokio::sync::OnceCell;
+
+/// Test-only KV adapter that makes sync's acknowledgement durability visible
+/// without relying on redb's filesystem timing.
+struct CountingKv {
+    inner: Arc<dyn super::kv_store::KvStore>,
+    flushes: AtomicUsize,
+    applies: AtomicUsize,
+    fail_flush: AtomicBool,
+    fail_apply: AtomicBool,
+}
+
+impl CountingKv {
+    fn new(inner: Arc<dyn super::kv_store::KvStore>) -> Self {
+        Self {
+            inner,
+            flushes: AtomicUsize::new(0),
+            applies: AtomicUsize::new(0),
+            fail_flush: AtomicBool::new(false),
+            fail_apply: AtomicBool::new(false),
+        }
+    }
+    fn reset(&self) {
+        self.flushes.store(0, Ordering::SeqCst);
+        self.applies.store(0, Ordering::SeqCst);
+    }
+}
+
+impl super::kv_store::KvStore for CountingKv {
+    fn get(
+        &self,
+        tree: super::trees::Tree,
+        key: &[u8],
+    ) -> crate::errors::AtomicResult<Option<Vec<u8>>> {
+        self.inner.get(tree, key)
+    }
+    fn insert(
+        &self,
+        tree: super::trees::Tree,
+        key: &[u8],
+        val: &[u8],
+    ) -> crate::errors::AtomicResult<()> {
+        self.inner.insert(tree, key, val)
+    }
+    fn remove(&self, tree: super::trees::Tree, key: &[u8]) -> crate::errors::AtomicResult<()> {
+        self.inner.remove(tree, key)
+    }
+    fn contains_key(
+        &self,
+        tree: super::trees::Tree,
+        key: &[u8],
+    ) -> crate::errors::AtomicResult<bool> {
+        self.inner.contains_key(tree, key)
+    }
+    fn scan_prefix(&self, tree: super::trees::Tree, prefix: &[u8]) -> super::kv_store::KvIter {
+        self.inner.scan_prefix(tree, prefix)
+    }
+    fn range(
+        &self,
+        tree: super::trees::Tree,
+        start: Vec<u8>,
+        end: Vec<u8>,
+        reverse: bool,
+    ) -> super::kv_store::KvIter {
+        self.inner.range(tree, start, end, reverse)
+    }
+    fn range_page(
+        &self,
+        tree: super::trees::Tree,
+        start: Vec<u8>,
+        end: Vec<u8>,
+        limit: usize,
+    ) -> crate::errors::AtomicResult<Vec<super::kv_store::KvPair>> {
+        self.inner.range_page(tree, start, end, limit)
+    }
+    fn iter_tree(&self, tree: super::trees::Tree) -> super::kv_store::KvIter {
+        self.inner.iter_tree(tree)
+    }
+    fn first_entry(
+        &self,
+        tree: super::trees::Tree,
+    ) -> crate::errors::AtomicResult<Option<super::kv_store::KvPair>> {
+        self.inner.first_entry(tree)
+    }
+    fn clear_tree(&self, tree: super::trees::Tree) -> crate::errors::AtomicResult<()> {
+        self.inner.clear_tree(tree)
+    }
+    fn apply_batch(
+        &self,
+        operations: &[super::trees::Operation],
+    ) -> crate::errors::AtomicResult<()> {
+        self.applies.fetch_add(1, Ordering::SeqCst);
+        if self.fail_apply.load(Ordering::SeqCst) {
+            return Err("injected apply failure".into());
+        }
+        self.inner.apply_batch(operations)
+    }
+    fn flush(&self) -> crate::errors::AtomicResult<()> {
+        self.flushes.fetch_add(1, Ordering::SeqCst);
+        if self.fail_flush.load(Ordering::SeqCst) {
+            return Err("injected flush failure".into());
+        }
+        self.inner.flush()
+    }
+    fn len(&self, tree: super::trees::Tree) -> crate::errors::AtomicResult<usize> {
+        self.inner.len(tree)
+    }
+}
+
+async fn counting_db() -> (Db, Arc<CountingKv>) {
+    let mut db = Db::init_memory(None).await.unwrap();
+    let kv = Arc::new(CountingKv::new(db.kv.clone()));
+    db.kv = kv.clone();
+    kv.reset();
+    (db, kv)
+}
+
+async fn local_id_push(
+    last: bool,
+) -> (crate::sync::protocol::DecodedSyncPush, crate::agents::Agent) {
+    let source = Db::init_temp(&format!(
+        "sync_push_counting_source_{}",
+        crate::utils::random_string(12)
+    ))
+    .await
+    .unwrap();
+    let (agent, drive) = source.setup("Counting source").await.unwrap();
+    let mut entries = Vec::new();
+    let drive_snapshot = source
+        .kv
+        .get(super::trees::Tree::LoroSnapshots, drive.as_bytes())
+        .unwrap()
+        .unwrap();
+    entries.push((drive.clone(), drive_snapshot));
+    for n in 0..2 {
+        let subject = source
+            .create_resource(urls::FOLDER, &drive, &format!("row {n}"), None)
+            .await
+            .unwrap();
+        let mut resource = source.get_resource(&subject.clone().into()).await.unwrap();
+        resource
+            .set_unsafe(urls::LOCAL_ID.into(), Value::String(format!("source:{n}")))
+            .unwrap();
+        resource.save_locally(&source).await.unwrap();
+        let snapshot = source
+            .kv
+            .get(super::trees::Tree::LoroSnapshots, subject.as_bytes())
+            .unwrap()
+            .unwrap();
+        entries.push((subject, snapshot));
+    }
+    let refs: Vec<(&str, &[u8])> = entries
+        .iter()
+        .map(|(s, b)| (s.as_str(), b.as_slice()))
+        .collect();
+    let frame = crate::sync::protocol::encode_sync_push(&drive, &refs, last);
+    (
+        crate::sync::protocol::decode_sync_push(&frame[1..]).unwrap(),
+        agent,
+    )
+}
+
+#[tokio::test]
+#[timeout(120000)]
+async fn sync_push_batches_local_ids_and_flushes_only_at_last() {
+    let (push, agent) = local_id_push(false).await;
+    let (sink, counter) = counting_db().await;
+    crate::sync::engine::import_sync_push(
+        &push,
+        &sink,
+        &crate::agents::ForAgent::from(agent.clone()),
+        false,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        counter.flushes.load(Ordering::SeqCst),
+        0,
+        "non-final chunks are not acknowledgement barriers"
+    );
+    assert_eq!(
+        counter.applies.load(Ordering::SeqCst),
+        1,
+        "localId rows share one projection transaction"
+    );
+    assert_eq!(
+        sink.query(&crate::storelike::Query::new_prop_val(
+            urls::LOCAL_ID,
+            "source:0"
+        ))
+        .await
+        .unwrap()
+        .subjects
+        .len(),
+        1,
+        "the localId projection and its index land with the resource"
+    );
+
+    let last_entries: Vec<(&str, &[u8])> = push
+        .entries
+        .iter()
+        .map(|entry| (entry.subject.as_str(), entry.loro_bytes.as_slice()))
+        .collect();
+    let last_frame = crate::sync::protocol::encode_sync_push(&push.drive, &last_entries, true);
+    let last = crate::sync::protocol::decode_sync_push(&last_frame[1..]).unwrap();
+    counter.reset();
+    crate::sync::engine::import_sync_push(
+        &last,
+        &sink,
+        &crate::agents::ForAgent::from(agent),
+        false,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        counter.flushes.load(Ordering::SeqCst),
+        1,
+        "LAST flushes once after the batch"
+    );
+}
+
+#[tokio::test]
+#[timeout(120000)]
+async fn sync_push_last_reports_a_durable_flush_failure_even_when_empty() {
+    let (sink, counter) = counting_db().await;
+    counter.fail_flush.store(true, Ordering::SeqCst);
+    let frame = crate::sync::protocol::encode_sync_push("atomic:empty", &[], true);
+    let push = crate::sync::protocol::decode_sync_push(&frame[1..]).unwrap();
+    let error =
+        crate::sync::engine::import_sync_push(&push, &sink, &crate::agents::ForAgent::Sudo, false)
+            .await
+            .unwrap_err();
+    assert!(error.reason.contains("durably flush"));
+    assert_eq!(counter.flushes.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+#[timeout(120000)]
+async fn public_replica_batch_flushes_local_ids_once() {
+    let (store, counter) = counting_db().await;
+    let make = |n: usize| {
+        let subject = format!("atomic:public-batch-{n}");
+        let mut authored = crate::Resource::new(subject.clone());
+        authored
+            .set_unsafe(
+                urls::PARENT.into(),
+                Value::AtomicUrl("atomic:public-batch-parent".into()),
+            )
+            .unwrap();
+        authored
+            .set_unsafe(urls::LOCAL_ID.into(), Value::String(format!("public:{n}")))
+            .unwrap();
+        let snapshot = authored.build_state_doc().unwrap().export_snapshot();
+        let mut replica = crate::Resource::new(subject);
+        replica
+            .apply_state_doc(crate::loro::AtomicLoroDoc::from_snapshot(&snapshot).unwrap())
+            .unwrap();
+        (replica, Some(snapshot))
+    };
+    store
+        .persist_replicated_resources(vec![make(0), make(1)])
+        .await
+        .unwrap();
+    assert_eq!(counter.applies.load(Ordering::SeqCst), 1);
+    assert_eq!(counter.flushes.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+#[timeout(120000)]
+async fn sync_push_staged_parent_accepts_an_unstamped_childs_second_delta() {
+    let sink = Db::init_temp("sync_push_staged_parent").await.unwrap();
+    let (agent, drive) = sink.setup("Staged parent").await.unwrap();
+    let parent = "atomic:staged-parent";
+    let child = "atomic:staged-child";
+    let parent_doc = crate::loro::AtomicLoroDoc::new();
+    parent_doc
+        .set_property(urls::DRIVE_PROP, &Value::AtomicUrl(drive.clone().into()))
+        .unwrap();
+    parent_doc
+        .set_property(urls::NAME, &Value::String("parent".into()))
+        .unwrap();
+    let child_doc = crate::loro::AtomicLoroDoc::new();
+    child_doc
+        .set_property(urls::PARENT, &Value::AtomicUrl(parent.into()))
+        .unwrap();
+    child_doc
+        .set_property(urls::NAME, &Value::String("child".into()))
+        .unwrap();
+    let first_child = child_doc.export_snapshot();
+    let second_child_doc = crate::loro::AtomicLoroDoc::from_snapshot(&first_child).unwrap();
+    second_child_doc
+        .set_property(urls::DESCRIPTION, &Value::String("second delta".into()))
+        .unwrap();
+    let parent_snapshot = parent_doc.export_snapshot();
+    let second_child = second_child_doc.export_snapshot();
+    let entries = [
+        (parent, parent_snapshot.as_slice()),
+        (child, first_child.as_slice()),
+        (child, second_child.as_slice()),
+    ];
+    let frame = crate::sync::protocol::encode_sync_push(&drive, &entries, true);
+    let push = crate::sync::protocol::decode_sync_push(&frame[1..]).unwrap();
+    let (count, _) = crate::sync::engine::import_sync_push(
+        &push,
+        &sink,
+        &crate::agents::ForAgent::from(agent),
+        false,
+    )
+    .await
+    .unwrap();
+    assert_eq!(count, 3);
+    assert_eq!(
+        sink.get_resource(&child.into())
+            .await
+            .unwrap()
+            .get(urls::DESCRIPTION)
+            .unwrap()
+            .to_string(),
+        "second delta"
+    );
+}
+
+/// Independent Loro updates for the same subject in one frame are merged onto
+/// the staged snapshot, rather than each update replacing the other.  The
+/// entries after the child's initial snapshot are updates-only blobs, as a
+/// pair of offline peers would send.
+#[tokio::test]
+#[timeout(120000)]
+async fn sync_push_merges_independent_same_subject_deltas_and_keeps_history() {
+    let sink = Db::init_temp("sync_push_independent_deltas").await.unwrap();
+    let (agent, drive) = sink.setup("Independent deltas").await.unwrap();
+    let parent = "atomic:independent-delta-parent";
+    let child = "atomic:independent-delta-child";
+
+    let parent_doc = crate::loro::AtomicLoroDoc::new();
+    parent_doc
+        .set_property(urls::DRIVE_PROP, &Value::AtomicUrl(drive.clone().into()))
+        .unwrap();
+    parent_doc.commit();
+
+    let child_base = crate::loro::AtomicLoroDoc::new();
+    child_base
+        .set_property(urls::PARENT, &Value::AtomicUrl(parent.into()))
+        .unwrap();
+    child_base.commit();
+    let base_snapshot = child_base.export_snapshot();
+    let base_version = child_base.oplog_vv();
+
+    let delta_a_doc = crate::loro::AtomicLoroDoc::from_snapshot(&base_snapshot).unwrap();
+    delta_a_doc.set_peer_id(1_001).unwrap();
+    delta_a_doc
+        .set_property(urls::NAME, &Value::String("from a".into()))
+        .unwrap();
+    delta_a_doc.commit();
+    let delta_a = delta_a_doc.export_updates_since(&base_version);
+
+    let delta_b_doc = crate::loro::AtomicLoroDoc::from_snapshot(&base_snapshot).unwrap();
+    delta_b_doc.set_peer_id(1_002).unwrap();
+    delta_b_doc
+        .set_property(urls::DESCRIPTION, &Value::String("from b".into()))
+        .unwrap();
+    delta_b_doc.commit();
+    let delta_b = delta_b_doc.export_updates_since(&base_version);
+
+    let parent_snapshot = parent_doc.export_snapshot();
+    let entries = [
+        (parent, parent_snapshot.as_slice()),
+        (child, base_snapshot.as_slice()),
+        (child, delta_a.as_slice()),
+        (child, delta_b.as_slice()),
+    ];
+    let frame = crate::sync::protocol::encode_sync_push(&drive, &entries, true);
+    let push = crate::sync::protocol::decode_sync_push(&frame[1..]).unwrap();
+    assert_eq!(
+        crate::sync::engine::import_sync_push(
+            &push,
+            &sink,
+            &crate::agents::ForAgent::from(agent),
+            false,
+        )
+        .await
+        .unwrap()
+        .0,
+        4
+    );
+
+    let merged = sink.get_resource(&child.into()).await.unwrap();
+    assert_eq!(merged.get(urls::NAME).unwrap().to_string(), "from a");
+    assert_eq!(merged.get(urls::DESCRIPTION).unwrap().to_string(), "from b");
+    let replay = crate::loro::AtomicLoroDoc::from_snapshot(
+        &sink
+            .get_loro_snapshot_bytes(child)
+            .expect("merged snapshot"),
+    )
+    .unwrap();
+    assert_eq!(
+        replay.get_string_property(urls::NAME),
+        Some("from a".into())
+    );
+    assert_eq!(
+        replay.get_string_property(urls::DESCRIPTION),
+        Some("from b".into())
+    );
+    assert!(
+        replay.get_history().len() >= 3,
+        "the replayable snapshot retains the base and both independent deltas"
+    );
+}
+
+#[tokio::test]
+#[timeout(120000)]
+async fn sync_push_projection_failure_is_not_acknowledged_or_partially_applied() {
+    let (push, agent) = local_id_push(true).await;
+    let (sink, counter) = counting_db().await;
+    counter.fail_apply.store(true, Ordering::SeqCst);
+    let error = crate::sync::engine::import_sync_push(&push, &sink, &ForAgent::from(agent), false)
+        .await
+        .unwrap_err();
+    assert!(error.reason.contains("persist SYNC_PUSH batch"));
+    assert_eq!(counter.applies.load(Ordering::SeqCst), 1);
+    assert_eq!(counter.flushes.load(Ordering::SeqCst), 0);
+    for entry in &push.entries {
+        assert!(sink
+            .kv
+            .get(Tree::Resources, entry.subject.as_bytes())
+            .unwrap()
+            .is_none());
+        assert!(sink
+            .kv
+            .get(Tree::LoroSnapshots, entry.subject.as_bytes())
+            .unwrap()
+            .is_none());
+    }
+}
+
+/// A newly replicated table is not in the KV yet when its rows are staged.
+/// Its row logs must still share the same transaction as the projections.
+#[tokio::test]
+#[timeout(120000)]
+async fn sync_push_new_table_and_rows_keep_change_log_entries_in_one_batch() {
+    let (sink, counter) = counting_db().await;
+    let (_, drive) = sink.setup("Batch table logs").await.unwrap();
+    let table = "atomic:sync-batch-table";
+    let class = "atomic:sync-batch-class";
+    let mut entries = Vec::new();
+    let mut table_resource = Resource::new(table.into());
+    table_resource
+        .set_unsafe(
+            urls::IS_A.into(),
+            Value::ResourceArray(vec![urls::TABLE.into()]),
+        )
+        .unwrap();
+    table_resource
+        .set_unsafe(urls::CLASSTYPE_PROP.into(), Value::AtomicUrl(class.into()))
+        .unwrap();
+    table_resource
+        .set_unsafe(
+            urls::DRIVE_PROP.into(),
+            Value::AtomicUrl(drive.clone().into()),
+        )
+        .unwrap();
+    entries.push((
+        table.to_string(),
+        table_resource.build_state_doc().unwrap().export_snapshot(),
+    ));
+    for n in 0..2 {
+        let subject = format!("atomic:sync-batch-table-row-{n}");
+        let mut row = Resource::new(subject.clone());
+        row.set_unsafe(urls::IS_A.into(), Value::ResourceArray(vec![class.into()]))
+            .unwrap();
+        row.set_unsafe(urls::PARENT.into(), Value::AtomicUrl(table.into()))
+            .unwrap();
+        row.set_unsafe(urls::NAME.into(), Value::String(format!("Row {n}")))
+            .unwrap();
+        entries.push((subject, row.build_state_doc().unwrap().export_snapshot()));
+    }
+    let refs: Vec<_> = entries
+        .iter()
+        .map(|(subject, bytes)| (subject.as_str(), bytes.as_slice()))
+        .collect();
+    let frame = crate::sync::protocol::encode_sync_push(&drive, &refs, true);
+    let push = crate::sync::protocol::decode_sync_push(&frame[1..]).unwrap();
+    counter.reset();
+    assert_eq!(
+        crate::sync::engine::import_sync_push(&push, &sink, &ForAgent::Sudo, false)
+            .await
+            .unwrap()
+            .0,
+        3
+    );
+    assert_eq!(counter.applies.load(Ordering::SeqCst), 1);
+    let prefix = format!("e\0{table}\0");
+    let logs: Vec<_> = sink
+        .kv
+        .scan_prefix(Tree::TableChanges, prefix.as_bytes())
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        logs.len(),
+        2,
+        "row logs exist before a read can backfill them"
+    );
+    for (_, bytes) in logs {
+        let entry: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(entry["kind"], "created");
+        assert!(entry["version"].is_object());
+    }
+}
 
 // `#[timeout(120000)]` below: under dagger Main, nextest runs beside e2e
 // Chromium shards and heavy `atomic-server::it` servers. `Db::init_temp` +

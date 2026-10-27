@@ -1224,6 +1224,7 @@ export const TableResource: React.FC<TableResourceProps> = ({
               />
             )}
             <FancyTable
+              busy={!ready}
               readOnly={!canWrite}
               columns={gridColumns}
               columnSizes={gridColumnSizes}

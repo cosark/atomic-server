@@ -2009,11 +2009,13 @@ pub async fn sync_drive_with_peer_using_outcome(
                             push.drive,
                             drive
                         );
-                        if let Ok((count, _)) =
-                            super::engine::import_sync_push(&push, store, &remote_agent, false)
-                                .await
+                        match super::engine::import_sync_push(&push, store, &remote_agent, false)
+                            .await
                         {
-                            total_imported += count;
+                            Ok((count, _)) => total_imported += count,
+                            Err(rejected) => {
+                                return Err(format!("Dropped incoming SYNC_PUSH: {rejected}").into())
+                            }
                         }
                         if last_chunk {
                             break;
@@ -2043,11 +2045,11 @@ pub async fn sync_drive_with_peer_using_outcome(
                             }
                         }
                         // We dialed this peer and asked for its state; the
-                        // refusal is our own admission gate saying no to what
-                        // came back. Nothing landed, and there is nothing to
-                        // tell the peer — it did not ask us for anything.
+                        // rejection can be admission/rights, persistence, or
+                        // the LAST durability barrier. Propagate it instead
+                        // of reporting this sync as successful.
                         Err(rejected) => {
-                            tracing::warn!("[sync] dropped incoming push: {rejected}");
+                            return Err(format!("Dropped incoming SYNC_PUSH: {rejected}").into())
                         }
                     }
                 }

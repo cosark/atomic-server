@@ -1,3 +1,9 @@
+SYNC_PUSH candidate backport: counting/failing KV tests in `lib/src/db/test.rs` verify per-frame atomic projection/index application, import identity durability, staged table change logs and parent admission, wire-order duplicate-subject delta merging, empty-LAST flush failure and write failure propagation. `lib/tests/import_durability.rs` aborts and reopens the real store after LAST to verify resources, snapshots, envelopes and indexes. This does not establish a 100 ms sync target.
+
+Schema-backed JSON table previews: `schemaJSONPreview.test.ts` covers prose, labeled booleans/lists, local references, nulls, order, unsupported schemas and output bounds. `resource.nested-json-null.test.ts` verifies JSON nulls survive an exported/reopened Loro snapshot (fails on candidate22 before the narrow upstream fix). Browser rendering and grid loading are verified separately against matching assets.
+
+Bounded WebSocket reads: `browser/lib/src/store.read-fallback.test.ts` covers stalled OPEN sockets and authentication recovering over authenticated HTTP, local/remote budgets, deduplication, healthy sockets, explicit refusal, fallback failure, and POST using HTTP once. `websockets.test.ts` covers cancellation, ignored late responses and retained subscription pushes. Library/frame tests do not establish browser paint latency. Bulk GET_MANY retains its own timeout.
+
 Server descriptor budget (2026-09-22): `server/src/serve.rs` tests the HTTP
 connection budget at small, staging-sized, and effectively unlimited process
 descriptor limits. Startup reads the process soft `RLIMIT_NOFILE`, limits Actix

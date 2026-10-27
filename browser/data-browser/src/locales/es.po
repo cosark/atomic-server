@@ -10188,3 +10188,7 @@ msgstr ""
 #: src/chunks/TablePage/TableViewTabs.tsx
 msgid "Waiting for review of {0}"
 msgstr ""
+
+#: src/chunks/TablePage/EditorCells/JSONCell.tsx
+msgid "Preview shortened. Open edit dialog for complete JSON."
+msgstr ""

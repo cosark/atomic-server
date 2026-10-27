@@ -7,6 +7,8 @@ See [STATUS.md](server/STATUS.md) to learn more about which features will remain
 
 ## UNRELEASED
 
+- Batch accepted SYNC_PUSH resource projections and indexes per frame, with one durable flush on LAST (including an empty terminator). Persistence failures now reject the sync. Backported from #2361 to the Atomic plugins candidate without changing admission rules or signed-envelope validation.
+
 - A plugin run no longer falls back to the server's agent for an app or
   installation whose key is not on this node (#1644), and that check sees
   installation identities (#1700, answer 8): an Installation's keyless

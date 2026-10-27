@@ -500,23 +500,94 @@ impl Db {
     /// duplicate import identities. Keep both subjects available for review;
     /// authoring paths must still enforce identity uniqueness.
     pub async fn persist_replicated_resource(&self, resource: &Resource) -> AtomicResult<()> {
-        // Review validation holds this same identity lock while reading all
-        // copies. Replica changes must not land halfway through that review.
-        let _identity_guard = if let Some((parent, id)) = crate::import_identity::identity(resource)
-        {
-            Some(
-                self.subject_locks
-                    .lock(&format!(
-                        "import-identity:{}",
-                        serde_json::to_string(&(parent.pure_id(), &id))?
-                    ))
-                    .await,
-            )
-        } else {
-            None
-        };
-        self.persist_resource_projection(resource, false, true, true)
+        self.persist_replicated_resources(vec![(resource.clone(), None)])
             .await
+    }
+
+    /// Persist an admitted replica batch and durably acknowledge import identities.
+    pub async fn persist_replicated_resources(
+        &self,
+        entries: Vec<(Resource, Option<Vec<u8>>)>,
+    ) -> AtomicResult<()> {
+        let has_identity = entries
+            .iter()
+            .any(|(resource, _)| crate::import_identity::identity(resource).is_some());
+        let resources = self.persist_replicated_resources_prepared(entries).await?;
+        if has_identity {
+            self.flush()?;
+        }
+        self.finish_replicated_resources(resources).await;
+        Ok(())
+    }
+
+    /// The caller holds subject locks from snapshot reads through this write.
+    /// Return notifications for delivery after those locks have been released.
+    pub(crate) async fn persist_replicated_resources_prepared(
+        &self,
+        entries: Vec<(Resource, Option<Vec<u8>>)>,
+    ) -> AtomicResult<Vec<Resource>> {
+        let mut last = HashMap::new();
+        for (i, (resource, _)) in entries.iter().enumerate() {
+            last.insert(self.normalize_subject(resource.get_subject()).pure_id(), i);
+        }
+        let entries: Vec<_> = entries
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, entry)| {
+                (last.get(&self.normalize_subject(entry.0.get_subject()).pure_id()) == Some(&i))
+                    .then_some(entry)
+            })
+            .collect();
+        // Signed commits acquire subject locks before identity locks too.
+        // Stable ordering also lets two overlapping replica batches coexist.
+        let mut identity_keys: Vec<_> = entries
+            .iter()
+            .filter_map(|(resource, _)| {
+                crate::import_identity::identity(resource).map(|(parent, id)| {
+                    format!(
+                        "import-identity:{}",
+                        serde_json::to_string(&(parent.pure_id(), id)).expect("identity key")
+                    )
+                })
+            })
+            .collect();
+        identity_keys.sort();
+        identity_keys.dedup();
+        let mut identity_guards = Vec::with_capacity(identity_keys.len());
+        for key in &identity_keys {
+            identity_guards.push(self.subject_locks.lock(key).await);
+        }
+        let mut transaction = Transaction::new();
+        let mut log_ops = Vec::new();
+        let mut resources = Vec::with_capacity(entries.len());
+        for (resource, snapshot) in entries {
+            log_ops.extend(
+                self.build_projection_tx(&resource, false, true, true, snapshot, &mut transaction)
+                    .await?,
+            );
+            resources.push(resource);
+        }
+        if !resources.is_empty() {
+            self.apply_with_change_log(&log_ops, &mut transaction, None)?;
+        }
+        drop(identity_guards);
+        Ok(resources)
+    }
+
+    pub(crate) async fn finish_replicated_resources(&self, resources: Vec<Resource>) {
+        for resource in resources {
+            self.notify_replicated_resource(&resource);
+        }
+    }
+
+    fn notify_replicated_resource(&self, resource: &Resource) {
+        let _ = self.db_events.send(DbEvent::Changed {
+            subject: resource.get_subject().without_params(),
+            delta: None,
+            source_id: crate::sync::ws_apply::current_import_source(),
+            is_new: false,
+            from_commit: false,
+        });
     }
 
     async fn persist_resource_projection(
@@ -526,6 +597,51 @@ impl Db {
         update_index: bool,
         overwrite_existing: bool,
     ) -> AtomicResult<()> {
+        let mut transaction = Transaction::new();
+        let log_ops = self
+            .build_projection_tx(
+                resource,
+                check_required_props,
+                update_index,
+                overwrite_existing,
+                None,
+                &mut transaction,
+            )
+            .await?;
+        self.apply_with_change_log(&log_ops, &mut transaction, None)?;
+        if crate::import_identity::identity(resource).is_some() {
+            self.flush()?;
+        }
+        self.notify_replicated_resource(resource);
+        Ok(())
+    }
+
+    /// Read a previously staged projection before falling back to the DB.
+    pub(crate) fn projected_propvals(&self, subject: &str, tx: &Transaction) -> Option<PropVals> {
+        if let Some(op) = tx
+            .iter()
+            .rev()
+            .find(|op| op.tree == Tree::Resources && op.key == subject.as_bytes())
+        {
+            return op
+                .val
+                .as_deref()
+                .and_then(|bytes| decode_propvals(bytes).ok());
+        }
+        self.get_propvals_canonical(subject)
+            .ok()
+            .map(|(_, props)| props)
+    }
+
+    async fn build_projection_tx(
+        &self,
+        resource: &Resource,
+        check_required_props: bool,
+        update_index: bool,
+        overwrite_existing: bool,
+        snapshot: Option<Vec<u8>>,
+        transaction: &mut Transaction,
+    ) -> AtomicResult<Vec<crate::change_log::LogOp>> {
         // This only works if no external functions rely on using add_resource for atom-like operations!
         // However, add_atom uses set_propvals, which skips the validation.
         let subject = self.normalize_subject(resource.get_subject());
@@ -544,8 +660,6 @@ impl Db {
         if check_required_props {
             resource.check_required_props(self).await?;
         }
-        // Build a single transaction for index updates + resource persistence
-        let mut transaction = Transaction::new();
 
         if update_index {
             // Persist DID routing hint if available
@@ -575,17 +689,17 @@ impl Db {
                 let old = Resource::from_propvals(pv.clone(), subject.clone());
                 for (prop, val) in pv.iter() {
                     let remove_atom = crate::Atom::new(subject.clone(), prop.into(), val.clone());
-                    self.remove_atom_from_index(&remove_atom, &old, &mut transaction)
+                    self.remove_atom_from_index(&remove_atom, &old, transaction)
                         .map_err(|e| {
                             format!("Failed to remove atom from index {}. {}", remove_atom, e)
                         })?;
                 }
             }
             for a in resource.to_atoms() {
-                self.add_atom_to_index(&a, resource, &mut transaction)
+                self.add_atom_to_index(&a, resource, transaction)
                     .map_err(|e| format!("Failed to add atom to index {}. {}", a, e))?;
             }
-            crate::search::index_resource(self, resource, &mut transaction)?;
+            crate::search::index_resource(self, resource, transaction)?;
         }
         // The snapshot in `Tree::LoroSnapshots` is the authoritative CRDT
         // state. Derive and
@@ -603,15 +717,19 @@ impl Db {
         let mut log_ops = Vec::new();
         canonical_scheme::canonicalize_propvals(&mut propvals);
         if !subject.is_commit_did() {
-            let snapshot = resource.build_state_doc()?.export_snapshot();
+            let snapshot = match snapshot {
+                Some(snapshot) => snapshot,
+                None => resource.build_state_doc()?.export_snapshot(),
+            };
             propvals.remove(crate::urls::LORO_UPDATE);
             // A replicated row counts for its table's change list like a
             // committed one (#1850).
-            log_ops = self.change_log_ops(
+            log_ops = self.change_log_ops_staged(
                 existing.as_ref(),
                 Some(resource.get_propvals()),
                 &subject_str,
                 crate::change_log::version_of_snapshot(&snapshot),
+                transaction,
             );
             transaction.push(Operation {
                 tree: Tree::LoroSnapshots,
@@ -629,22 +747,8 @@ impl Db {
             key: subject_str.as_bytes().to_vec(),
             val: Some(resource_bin),
         });
-        self.queue_delete_identifier_aliases(&subject_str, &mut transaction);
-        self.apply_with_change_log(&log_ops, &mut transaction, None)?;
-        if crate::import_identity::identity(resource).is_some() {
-            self.flush()?;
-        }
-        let _ = self.db_events.send(DbEvent::Changed {
-            subject: resource.get_subject().without_params(),
-            delta: None,
-            // Attributed here, while the importing write is still on the stack:
-            // the live push loop uses it to avoid sending an update straight
-            // back to the peer it came from.
-            source_id: crate::sync::ws_apply::current_import_source(),
-            is_new: false,
-            from_commit: false,
-        });
-        Ok(())
+        self.queue_delete_identifier_aliases(&subject_str, transaction);
+        Ok(log_ops)
     }
 
     /// Install a sync admission/quota policy (managed nodes). The default is

@@ -1,4 +1,10 @@
-import { JSONValue, useProperty } from '@tomic/react';
+import {
+  JSONValue,
+  server,
+  useProperty,
+  useResource,
+  useValue,
+} from '@tomic/react';
 
 import { CellContainer, DisplayCellProps, EditCellProps } from './Type';
 
@@ -12,6 +18,28 @@ import { addIf } from '@helpers/addIf';
 import { useTableEditorContext } from '@chunks/TableEditor/TableEditorContext';
 import { useColumnLabel } from '../helpers/useColumnLabel';
 import { InputJSON } from '@components/forms/InputJSON';
+import { schemaJSONPreview } from './schemaJSONPreview';
+
+function JSONPreview({
+  value,
+  property,
+}: {
+  value: JSONValue;
+  property: string;
+}) {
+  const propertyResource = useResource(property);
+  const [schema] = useValue(propertyResource, server.properties.jsonSchema);
+  const preview = schemaJSONPreview(value, schema);
+
+  return (
+    <Preview>
+      {preview.text}
+      {preview.truncated && (
+        <small>Preview shortened. Open edit dialog for complete JSON.</small>
+      )}
+    </Preview>
+  );
+}
 
 function JSONCellEdit({
   value,
@@ -49,14 +77,12 @@ function JSONCellEdit({
 
   useCellOptions(options);
 
-  const displayValue = JSON.stringify(value);
-
   return (
     <>
       <IconButton title='Open edit dialog' onClick={show} autoFocus>
         <FaPencil />
       </IconButton>
-      <div>{displayValue}</div>
+      <JSONPreview value={value} property={property} />
       <Dialog {...dialogProps} width='70ch'>
         {isOpen && (
           <>
@@ -80,10 +106,11 @@ function JSONCellEdit({
   );
 }
 
-function JSONCellDisplay({ value }: DisplayCellProps<JSONValue>): JSX.Element {
-  const displayValue = JSON.stringify(value);
-
-  return <>{displayValue}</>;
+function JSONCellDisplay({
+  value,
+  property,
+}: DisplayCellProps<JSONValue>): JSX.Element {
+  return <JSONPreview value={value} property={property} />;
 }
 
 export const JSONCell: CellContainer<JSONValue> = {
@@ -93,4 +120,14 @@ export const JSONCell: CellContainer<JSONValue> = {
 
 const StyledDialogContent = styled(Dialog.Content)`
   padding-top: 2px;
+`;
+
+const Preview = styled.div`
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+
+  small {
+    display: block;
+    opacity: 0.7;
+  }
 `;

@@ -385,6 +385,10 @@ impl Db {
 impl Db {
     /// The table (pure id) `propvals` is a row of, if any. Reads the parent.
     pub(crate) fn row_table_of(&self, propvals: &PropVals) -> Option<String> {
+        self.row_table_of_staged(propvals, &Transaction::new())
+    }
+
+    fn row_table_of_staged(&self, propvals: &PropVals, tx: &Transaction) -> Option<String> {
         // Cheap checks first: most resources are not rows of anything.
         let classes = self.subjects_of(propvals, urls::IS_A);
         if classes.is_empty() {
@@ -392,7 +396,7 @@ impl Db {
         }
         let parent = propvals.get(urls::PARENT)?.to_string();
         let parent = self.canonical_id(&parent);
-        let (_, parent_props) = self.get_propvals_canonical(&parent).ok()?;
+        let parent_props = self.projected_propvals(&parent, tx)?;
         let class = self.table_class_of(&parent_props)?;
         classes.contains(&class).then_some(parent)
     }
@@ -407,9 +411,22 @@ impl Db {
         row: &str,
         version: Option<VersionMap>,
     ) -> Vec<LogOp> {
+        self.change_log_ops_staged(old, new, row, version, &Transaction::new())
+    }
+
+    /// Resolve parents from earlier projections in this transaction, matching
+    /// the wire order the single-resource replication path used to expose.
+    pub(crate) fn change_log_ops_staged(
+        &self,
+        old: Option<&PropVals>,
+        new: Option<&PropVals>,
+        row: &str,
+        version: Option<VersionMap>,
+        tx: &Transaction,
+    ) -> Vec<LogOp> {
         let mut ops = Vec::new();
-        let old_table = old.and_then(|p| self.row_table_of(p));
-        let new_table = new.and_then(|p| self.row_table_of(p));
+        let old_table = old.and_then(|p| self.row_table_of_staged(p, tx));
+        let new_table = new.and_then(|p| self.row_table_of_staged(p, tx));
         match (old_table, new_table) {
             (None, None) => {}
             (None, Some(t)) => ops.push(LogOp::Row {
