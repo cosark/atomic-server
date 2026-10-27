@@ -1398,6 +1398,73 @@ describe('WSClient.fetchMany', () => {
   const requestIdOf = (frame: Uint8Array) =>
     new DataView(frame.buffer, frame.byteOffset).getUint16(1);
 
+  it('cancels a GET waiting for authentication without sending it later', async ({
+    expect,
+  }) => {
+    const { client, socket } = await connectedClient();
+    let finish!: () => void;
+    vi.spyOn(client, 'authenticate').mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const read = client.fetch('atomic:cancelled', {
+      signal: controller.signal,
+    });
+    const rejected = expect(read).rejects.toBeDefined();
+    controller.abort();
+    await rejected;
+    finish();
+    await Promise.resolve();
+    expect(framesWithTag(socket, Tag.GET)).toHaveLength(0);
+    client.close();
+  });
+
+  it('ignores a cancelled GET response and still admits subscription pushes', async ({
+    expect,
+  }) => {
+    const { client, socket, store } = await connectedClient();
+    vi.spyOn(client, 'authenticate').mockResolvedValue(undefined);
+    const controller = new AbortController();
+    const read = client.fetch('atomic:cancelled', {
+      signal: controller.signal,
+    });
+    const rejected = expect(read).rejects.toBeDefined();
+    await vi.waitFor(() =>
+      expect(framesWithTag(socket, Tag.GET)).toHaveLength(1),
+    );
+    const requestId = requestIdOf(framesWithTag(socket, Tag.GET)[0]);
+    controller.abort();
+    await rejected;
+    const ingress = vi.spyOn(store, 'applyIncoming');
+    socket.receive(
+      updateFrame(requestId, 'atomic:cancelled', new Uint8Array()),
+    );
+    expect(ingress).not.toHaveBeenCalled();
+    const { LoroDoc } = LoroLoader.Loro;
+    const doc = new LoroDoc();
+    doc
+      .getMap('properties')
+      .set('https://atomicdata.dev/properties/name', 'Live update');
+    doc.commit();
+    const push = updateFrame(
+      0,
+      'atomic:cancelled',
+      doc.export({ mode: 'snapshot' }),
+    );
+    push[1] |= Flags.PUSH;
+    socket.receive(push);
+    expect(ingress).toHaveBeenCalledOnce();
+    expect(
+      store
+        .getResourceLoading('atomic:cancelled')
+        .get('https://atomicdata.dev/properties/name'),
+    ).toBe('Live update');
+    client.close();
+  });
+
   it('sends one GET_MANY and settles every entry in order', async ({
     expect,
   }) => {
