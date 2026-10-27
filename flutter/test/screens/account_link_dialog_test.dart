@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   testWidgets('shows the code, then saves the session once approved',
@@ -54,6 +55,7 @@ void main() {
 
     expect(find.text('ABCD-1234'), findsOneWidget);
     expect(find.textContaining('portal.example/link'), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Waiting for approval…'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 1));

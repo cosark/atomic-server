@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:atomic_flutter/atomic_flutter.dart' as shared;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 /// Connect this app to a hosted account, as the web app does: a short code is
 /// shown, approved at the account's `/link` page on a device where the person
@@ -135,11 +136,13 @@ class _AccountLinkDialogState extends State<AccountLinkDialog> {
               if (request == null && _error == null)
                 const LinearProgressIndicator()
               else if (request != null) ...[
-                Text(request.wantsIdentity
-                    ? 'Open the page in your browser and check that it shows '
-                        'this code.'
-                    : 'Open ${widget.client.origin.host}/link on a device where '
-                        'you are signed in, and enter this code.'),
+                const Text('On any device, go to'),
+                const SizedBox(height: 4),
+                SelectableText('${widget.client.origin.host}/link',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                const Text('and enter this code:'),
                 const SizedBox(height: 16),
                 Center(
                   child: shared.ClickCursor(
@@ -154,6 +157,28 @@ class _AccountLinkDialogState extends State<AccountLinkDialog> {
                               ?.copyWith(letterSpacing: 4)),
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+                // The same page as a QR code, for the camera of a phone that is
+                // signed in already.
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: QrImageView(
+                      data: request.approvalUrl.toString(),
+                      size: 160,
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Center(
+                  child: Text('Or scan it with a phone that is signed in.',
+                      style: theme.textTheme.bodySmall),
                 ),
                 const SizedBox(height: 12),
                 Row(children: [
