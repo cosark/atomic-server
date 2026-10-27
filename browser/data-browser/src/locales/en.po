@@ -269,6 +269,7 @@ msgstr "Automatically compact the conversation when input tokens exceed this per
 #: src/chunks/TablePage/QuickAddDialog.tsx
 #: src/chunks/TablePage/TableHeadingMenu.tsx
 #: src/chunks/TablePage/TableHeadingMenu.tsx
+#: src/components/Share/PeopleWithAccess.tsx
 #: src/components/forms/ResourceSelector/ResourceSelector.tsx
 #: src/routes/SyncRoute.tsx
 #: src/routes/SyncRoute.tsx
@@ -13266,3 +13267,12 @@ msgstr "A resource can't be moved into something inside it."
 #: src/helpers/moveResource.ts
 msgid "Moving to another drive is not supported yet."
 msgstr "Moving to another drive is not supported yet."
+
+#: src/components/Share/PeopleWithAccess.tsx
+msgid "Invited"
+msgstr "Invited"
+
+#. 0: invite.email
+#: src/components/Share/PeopleWithAccess.tsx
+msgid "Remove invite for {0}"
+msgstr "Remove invite for {0}"

@@ -167,3 +167,7 @@ required-features = ["db-redb"]
 name = "lifecycle_bench"
 harness = false
 required-features = ["db-redb"]
+
+[[example]]
+name = "syncd_bulk_benchmark"
+required-features = ["db-redb", "ws"]
