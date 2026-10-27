@@ -167,7 +167,7 @@ pub fn listen(endpoint: &Endpoint) -> tokio::task::JoinHandle<()> {
             let Some(data) = item.user_data() else {
                 continue;
             };
-            if let Some(tags) = parse_user_data(&data.to_string()) {
+            if let Some(tags) = parse_user_data(data.as_ref()) {
                 record(&item.node_id().to_string(), tags);
             }
         }
