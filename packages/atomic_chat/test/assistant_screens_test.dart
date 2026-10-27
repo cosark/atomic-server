@@ -359,11 +359,24 @@ Future<void> tapShowAll(WidgetTester tester, String section) async {
   await tester.tap(row);
 }
 
-/// A tap on + lists the kinds; AI chat starts a new chat.
+/// Holding + lists the kinds; AI chat starts a new chat. (A tap opens the
+/// Create something new page.)
 Future<void> tapNewChat(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('New'));
+  final gesture = await holdBarNew(tester);
+  await gesture.moveTo(tester.getCenter(find.text('AI chat').last));
   await tester.pump();
-  await tester.tap(find.text('AI chat'));
+  await gesture.up();
+}
+
+/// Touch and hold the bar's +; the list of kinds is open after.
+Future<TestGesture> holdBarNew(WidgetTester tester) async {
+  final gesture = await tester.startGesture(tester.getCenter(find.descendant(
+      of: find.byType(AppBottomBar),
+      matching:
+          find.byWidgetPredicate((w) => w is HoldFan && w.tooltip == 'New'))));
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump(const Duration(milliseconds: 200));
+  return gesture;
 }
 
 void main() {

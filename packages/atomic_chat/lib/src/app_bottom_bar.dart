@@ -199,8 +199,9 @@ class AppBottomBar extends StatelessWidget {
                           child: HoldFan<NewChoice>(
                             tooltip: 'New',
                             selected: newCurrent,
-                            tapOpensMenu: true,
-                            // A tap opens the list; swipe or hold also.
+                            // A tap opens the Create something new page; a
+                            // swipe or hold opens the list.
+                            onTap: _actions.newOther,
                             opensOnDown: true,
                             items: newItems,
                             onSelected: (choice) => _new(context, choice),

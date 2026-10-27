@@ -87,11 +87,9 @@ Future<void> _settle(WidgetTester tester) async {
 bool _current(String label) =>
     find.byKey(ValueKey('current:$label')).evaluate().isNotEmpty;
 
-/// A tap on + lists the kinds; AI chat starts a new chat.
+/// Holding + lists the kinds; AI chat starts a new chat.
 Future<void> tapNewChat(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('New'));
-  await tester.pump();
-  await tester.tap(find.text('AI chat'));
+  await _pick(tester, await _hold(tester, 'New'), 'AI chat');
 }
 
 void main() {
@@ -101,7 +99,8 @@ void main() {
   });
 
   testWidgets('the Home button is a house, filled on the home', (tester) async {
-    await tester.pumpWidget(_shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
+    await tester.pumpWidget(
+        _shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.home), findsOneWidget);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
@@ -249,13 +248,22 @@ void main() {
   });
 
   group('New (+)', () {
-    testWidgets('a tap lists the kinds; picking AI chat starts a chat',
-        (tester) async {
+    testWidgets('a tap opens the Create something new page', (tester) async {
       await tester.pumpWidget(_shell(_BarApi()));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('New'));
-      await tester.pump();
-      // Nothing is made by the tap itself.
+      await tester.pumpAndSettle();
+      expect(find.text('AI chat'), findsNothing);
+      expect(find.byType(ChatScreen), findsNothing);
+      expect(_controller(tester).topKind, ShellPage.newResource);
+    });
+
+    testWidgets('holding lists the kinds above the +; AI chat starts a chat',
+        (tester) async {
+      await tester.pumpWidget(_shell(_BarApi()));
+      await tester.pumpAndSettle();
+      final gesture = await _hold(tester, 'New');
+      // Nothing is made by the hold itself.
       expect(find.byType(ChatScreen), findsNothing);
       final rows = [
         for (final t in [
@@ -266,19 +274,19 @@ void main() {
           'New drive',
           'Other…'
         ])
-          tester.getRect(find.text(t)),
+          tester.getRect(find.text(t).last),
       ];
       for (var i = 1; i < rows.length; i++) {
         expect(rows[i].top, greaterThan(rows[i - 1].top), reason: 'order');
       }
       final bar = tester.getRect(find.byTooltip('New'));
       expect(rows.last.bottom, lessThan(bar.top), reason: 'above the +');
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
       for (final r in rows) {
         expect(r.left, greaterThanOrEqualTo(0));
-        expect(r.right, lessThanOrEqualTo(360));
+        expect(r.right, lessThanOrEqualTo(screen.width));
       }
-      await tester.tap(find.text('AI chat'));
-      await tester.pumpAndSettle();
+      await _pick(tester, gesture, 'AI chat');
       final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
       expect(chat.subject, isNull);
       expect(chat.voiceMode, isFalse);
@@ -289,8 +297,10 @@ void main() {
         (tester) async {
       await tester.pumpWidget(_shell(_BarApi()));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('New'));
-      await tester.pump();
+      final gesture = await _hold(tester, 'New');
+      await gesture.moveTo(const Offset(180, 60));
+      await gesture.up();
+      await tester.pumpAndSettle();
       await tester.tapAt(const Offset(180, 60));
       await tester.pumpAndSettle();
       expect(find.text('AI chat'), findsNothing);
@@ -298,14 +308,16 @@ void main() {
     });
 
     testWidgets('back closes the list and keeps the page', (tester) async {
-      await tester.pumpWidget(_shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
+      await tester.pumpWidget(
+          _shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Profile'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('New'));
-      await tester.pump();
+      final gesture = await _hold(tester, 'New');
       expect(find.text('AI chat'), findsOneWidget);
       await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await gesture.up();
       await tester.pumpAndSettle();
       expect(find.text('AI chat'), findsNothing);
       expect(_controller(tester).topKind, ShellPage.profile);
@@ -596,7 +608,8 @@ void main() {
             classUrl: '',
             drive: 'did:ad:home',
             score: 1.0,
-            emoji: null, picture: null
+            emoji: null,
+            picture: null
           ),
         ];
       await tester.pumpWidget(_shell(api));
@@ -626,7 +639,8 @@ void main() {
             classUrl: '',
             drive: 'did:ad:home',
             score: 1.0,
-            emoji: null, picture: null
+            emoji: null,
+            picture: null
           ),
         ];
       await tester.pumpWidget(_shell(api));
@@ -721,7 +735,8 @@ void main() {
     });
 
     testWidgets('tapping the current button does nothing', (tester) async {
-      await tester.pumpWidget(_shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
+      await tester.pumpWidget(
+          _shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Profile'));
       await tester.pumpAndSettle();
@@ -737,7 +752,8 @@ void main() {
 
     testWidgets('a page further down is popped back to, not pushed again',
         (tester) async {
-      await tester.pumpWidget(_shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
+      await tester.pumpWidget(
+          _shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Profile'));
       await tester.pumpAndSettle();
@@ -756,8 +772,8 @@ void main() {
     });
 
     testWidgets('a double tap pushes once', (tester) async {
-      await tester.pumpWidget(_shell(_BarApi(),
-          profile: (_) => const Scaffold(body: Text('Me'))));
+      await tester.pumpWidget(
+          _shell(_BarApi(), profile: (_) => const Scaffold(body: Text('Me'))));
       await tester.pumpAndSettle();
       await tapNewChat(tester);
       await tester.pump(const Duration(milliseconds: 50));

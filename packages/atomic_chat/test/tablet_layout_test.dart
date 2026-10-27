@@ -90,11 +90,24 @@ Future<void> _done(WidgetTester tester) async {
   await tester.pump(const Duration(seconds: 1));
 }
 
-/// A tap on + lists the kinds; AI chat starts a new chat.
+/// Holding + lists the kinds; AI chat starts a new chat. (A tap opens the
+/// Create something new page.)
 Future<void> tapNewChat(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('New'));
+  final gesture = await holdBarNew(tester);
+  await gesture.moveTo(tester.getCenter(find.text('AI chat').last));
   await tester.pump();
-  await tester.tap(find.text('AI chat'));
+  await gesture.up();
+}
+
+/// Touch and hold the bar's +; the list of kinds is open after.
+Future<TestGesture> holdBarNew(WidgetTester tester) async {
+  final gesture = await tester.startGesture(tester.getCenter(find.descendant(
+      of: find.byType(AppBottomBar),
+      matching:
+          find.byWidgetPredicate((w) => w is HoldFan && w.tooltip == 'New'))));
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump(const Duration(milliseconds: 200));
+  return gesture;
 }
 
 void main() {
@@ -302,16 +315,14 @@ void main() {
     });
   }
 
-  testWidgets('a tap on the bar\'s New lists the kinds above it, on screen',
+  testWidgets('holding the bar\'s New lists the kinds above it, on screen',
       (tester) async {
     _size(tester, _landscape);
     await tester.pumpWidget(_shell(_api()));
     await _settle(tester);
     final button = tester.getRect(find.descendant(
         of: find.byType(AppBottomBar), matching: find.byTooltip('New')));
-    await tester.tap(find.byTooltip('New'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 120));
+    final gesture = await holdBarNew(tester);
     var lastTop = -1.0;
     for (final t in [
       'AI chat',
@@ -321,14 +332,16 @@ void main() {
       'New drive',
       'Other…'
     ]) {
-      final r = tester.getRect(find.text(t));
+      final r = tester.getRect(find.text(t).last);
       expect(r.bottom, lessThan(button.top), reason: t);
       expect(r.right, lessThanOrEqualTo(_landscape.width), reason: t);
       expect(r.top, greaterThan(lastTop), reason: t);
       lastTop = r.top;
     }
     // A fresh chat from the list opens in the detail pane.
-    await tester.tap(find.text('AI chat'));
+    await gesture.moveTo(tester.getCenter(find.text('AI chat').last));
+    await tester.pump();
+    await gesture.up();
     await _settle(tester);
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(tester.getRect(find.byType(ChatScreen)).left,
