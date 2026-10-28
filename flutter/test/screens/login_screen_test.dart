@@ -301,8 +301,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('ABCD-1234'), findsOneWidget);
-    expect(find.textContaining('shows this code'), findsOneWidget);
+    expect(find.text('and enter this code:'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Open in your browser'));
     await tester.tap(find.text('Open in your browser'));
     expect(opened.single.toString(),
         'https://app.atomic.place/app/send-identity?code=ABCD-1234');
