@@ -13,21 +13,34 @@ test('Get started opens a workspace of your own, without an account', async ({
   await page.getByRole('button', { name: 'Get started' }).click();
   await expect(page).not.toHaveURL(/\/app\/welcome/, { timeout: 60_000 });
 
-  // They land in the ready-made drive, on its Welcome document.
-  await expect(
-    page.getByRole('heading', { name: 'Welcome to Atomic' }).first(),
-  ).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('stored on this device')).toBeVisible();
+  // They land on the page of the ready-made drive: the Getting started card
+  // on top, the Welcome document as its first row.
   await expect(page.getByTestId('current-drive-title')).toHaveText(
     'Welcome to Atomic',
   );
+  const card = page.getByTestId('getting-started');
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(card).toContainText('Getting started');
+  await expect(card).toContainText('0 of 5');
+
+  for (const step of [
+    'Name your drive',
+    'Start a project',
+    'Talk to the AI',
+    'Invite someone',
+    'Save your work',
+  ]) {
+    await expect(card.getByText(step, { exact: true })).toBeVisible();
+  }
+
+  // Inviting needs a project first, and says so.
+  await expect(card.getByRole('button', { name: 'Invite' })).toBeDisabled();
+  await expect(card).toContainText('Start a project first');
+  await expect(
+    page.getByRole('link', { name: 'Start here' }).first(),
+  ).toBeVisible();
   const items = page.locator('[data-sidebar-id]');
-  await expect(items).toHaveText([
-    'Welcome to Atomic',
-    'Notes',
-    'Tasks',
-    'Sketch',
-  ]);
+  await expect(items).toHaveText(['Start here', 'Notes', 'Tasks', 'Sketch']);
 
   // Not a disposable guest: the agent has a personal drive of its own.
   await expect
@@ -65,4 +78,26 @@ test('Get started opens a workspace of your own, without an account', async ({
     })
     .toBe(subject);
   await expect(page).not.toHaveURL(/\/app\/welcome/);
+});
+
+test('Hide removes the Getting started card and it stays away after a reload', async ({
+  page,
+}) => {
+  await page.goto(`${FRONTEND_URL}/app/welcome`);
+  await page.getByRole('button', { name: 'Get started' }).click();
+  const card = page.getByTestId('getting-started');
+  await expect(card).toBeVisible({ timeout: 60_000 });
+
+  // A new drive opens with its title in edit mode, and the first click would
+  // only end that.
+  await page.keyboard.press('Escape');
+  await card.getByRole('button', { name: 'Hide' }).click();
+  await expect(card).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.getByTestId('current-drive-title')).toHaveText(
+    'Welcome to Atomic',
+    { timeout: 30_000 },
+  );
+  await expect(card).toHaveCount(0);
 });

@@ -922,7 +922,7 @@ export function GettingStartedFlow({
 
     try {
       const { agent, drive } = await startLocalIdentity(store);
-      let open = { drive, landing: drive };
+      let open = { drive };
 
       try {
         open = await startWelcomeDrive(store, drive);
@@ -933,7 +933,8 @@ export function GettingStartedFlow({
 
       setAgent(agent);
       setDrive(open.drive);
-      navigate(constructOpenURL(open.landing));
+      // The drive page, with the Getting started card above its documents.
+      navigate(constructOpenURL(open.drive));
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
       setStep('welcome');

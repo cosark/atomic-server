@@ -55,6 +55,7 @@ import { core } from './ontologies/core.js';
 import * as trashOps from './trash.js';
 import { server, type Server } from './ontologies/server.js';
 import { notifications } from './ontologies/notifications.js';
+import { contacts } from './ontologies/contacts.js';
 import { conversations } from './ontologies/conversations.js';
 import { forms } from './ontologies/forms.js';
 import type { OptionalClass, UnknownClass } from './ontology.js';
@@ -596,6 +597,9 @@ const embeddedVocabulary = new Set<string>([
   // lib/defaults/notifications.json, likewise not on the catalog yet.
   ...Object.values(notifications.classes),
   ...Object.values(notifications.properties),
+  // lib/defaults/contacts.json, likewise.
+  ...Object.values(contacts.classes),
+  ...Object.values(contacts.properties),
   // lib/defaults/conversations.json, likewise.
   ...Object.values(conversations.classes),
   ...Object.values(conversations.properties),
@@ -5133,7 +5137,9 @@ export class Store {
   private async fetchHistoryAttributionFromServer(
     subject: string,
   ): Promise<HistoryAttribution | null> {
-    if (!this.serverUrl || this.noServer) return null;
+    // A drive that stays on this device has no history on the server.
+    if (!this.serverUrl || this.noServer || this.isLocalOnlySubject(subject))
+      return null;
 
     try {
       const url = new URL('/history-attribution', this.serverUrl);

@@ -80,20 +80,25 @@ describe('welcome template', () => {
 
     expect(plan.title).toBe('Welcome to Atomic');
     expect(plan.parts.map(p => [p.kind, p.name])).toEqual([
-      ['document', 'Welcome to Atomic'],
+      ['document', 'Start here'],
       ['document', 'Notes'],
       ['table', 'Tasks'],
       ['canvas', 'Sketch'],
     ]);
   });
 
-  it('keeps the welcome text to a handful of short paragraphs', () => {
+  it('keeps the welcome text short and links only to planned parts', () => {
     const doc = welcome.parts[0];
     if (doc.kind !== 'document') throw new Error('not a document');
-    const paragraphs = doc.text.split('\n');
+    const lines = doc.text.split('\n');
+    const keys = planTemplate(welcome, TEMPLATE_CATALOG, true).parts.map(
+      p => p.key,
+    );
+    const links = [...doc.text.matchAll(/\{\{([\w/-]+)\}\}/g)].map(m => m[1]);
 
-    expect(paragraphs.length).toBeGreaterThanOrEqual(5);
-    expect(paragraphs.length).toBeLessThanOrEqual(8);
+    expect(lines.length).toBeLessThanOrEqual(10);
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every(k => keys.includes(k))).toBe(true);
   });
 
   it('is not offered by the gallery or the table chat', () => {
