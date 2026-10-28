@@ -514,6 +514,9 @@ mod tests {
     /// shape (a map of scalars, a boolean, a nested `data` map) a browser sends.
     #[tokio::test]
     async fn bytes_made_the_way_presence_ts_makes_them_decode() {
+        // The pair first: starting it can take longer than the TTL on a busy
+        // runner, and an entry set before that would have expired.
+        let pair = Pair::new(PRESENCE_TTL_MS).await;
         let web = EphemeralStore::new(PRESENCE_TTL_MS);
         web.set(
             "tab-7",
@@ -525,7 +528,6 @@ mod tests {
                 "updatedAt": 1_775_504_552_928_i64,
             }),
         );
-        let pair = Pair::new(PRESENCE_TTL_MS).await;
         pair.b.apply_event(&EphemeralEvent {
             kind: protocol::ephemeral_kind::PRESENCE,
             drive: DRIVE.into(),
