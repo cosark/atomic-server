@@ -114,6 +114,7 @@ msgstr "Agentes de IA"
 #: src/chunks/AppPage/ConnectDialog.tsx
 #: src/chunks/DashboardPage/BlockConfigDialog.tsx
 #: src/chunks/FormBuilder/FieldOptions/LinkOptionsDialog.tsx
+#: src/chunks/PluginRuns/AddMarketplaceDialog.tsx
 #: src/chunks/PluginRuns/RunPluginDialog.tsx
 #: src/chunks/Plugins/InstallationReviewDialog.tsx
 #: src/chunks/TablePage/BreakdownDialog.tsx
@@ -1529,6 +1530,7 @@ msgstr "Este dispositivo"
 
 #: src/chunks/TablePage/PropertyForm/ExternalPropertyDialog.tsx
 #: src/components/EditLanguagesDialog.tsx
+#: src/components/Settings/IntegrationSettings.tsx
 msgid "Add"
 msgstr "Añadir"
 
@@ -2670,7 +2672,7 @@ msgstr "Aún no hay etiquetas."
 msgid "Open tag page"
 msgstr "Abrir página de etiquetas"
 
-#: src/chunks/FormBuilder/ShareLinkPanel.tsx
+#: src/components/ShareLink.tsx
 msgid "Link copied to clipboard"
 msgstr "Enlace copiado al portapapeles"
 
@@ -4310,8 +4312,8 @@ msgstr ""
 msgid "Mounted at {0}"
 msgstr ""
 
-#: src/chunks/FormBuilder/ShareLinkPanel.tsx
 #: src/components/Settings/VirtualDriveSettings.tsx
+#: src/components/ShareLink.tsx
 msgid "<0/> Open"
 msgstr ""
 
@@ -4438,8 +4440,10 @@ msgid "Languages"
 msgstr ""
 
 #. 0: tag
+#. 0: url
 #. 0: email
 #: src/components/EditLanguagesDialog.tsx
+#: src/components/Settings/IntegrationSettings.tsx
 #: src/components/Share/EmailInviteInput.tsx
 msgid "Remove {0}"
 msgstr ""
@@ -6873,30 +6877,12 @@ msgstr ""
 msgid "Dismiss"
 msgstr ""
 
-#: src/components/MetaSetter.tsx
-#: src/components/SideBar/AccountMenu.tsx
-#: src/routes/IntegrationStore.tsx
-msgid "Integrations"
-msgstr ""
-
-#: src/components/SideBar/AccountMenu.tsx
-msgid "Discover published integrations"
-msgstr ""
-
 #: src/chunks/PluginRuns/PluginSchedule.tsx
 msgid "Review the saved proposal and run history before continuing."
 msgstr ""
 
 #: src/chunks/PluginRuns/PluginSchedule.tsx
 msgid "Resume saved run"
-msgstr ""
-
-#: src/routes/IntegrationStore.tsx
-msgid "Search integrations"
-msgstr ""
-
-#: src/routes/IntegrationStore.tsx
-msgid "Search integrations, domains or standards"
 msgstr ""
 
 #: src/routes/IntegrationStore.tsx
@@ -7083,10 +7069,6 @@ msgstr ""
 
 #: src/chunks/PluginRuns/CreateEventAutomation.tsx
 msgid "The next screen opens an editable JavaScript starter. Automatic execution stays off until you enable it."
-msgstr ""
-
-#: src/routes/IntegrationStore.tsx
-msgid "Connect your apps and keep your work in sync. Add automations when you need them."
 msgstr ""
 
 #: src/chunks/PluginRuns/AutomationWorkspace.tsx
@@ -8446,7 +8428,7 @@ msgstr ""
 msgid "The selected model is not in the zero-retention list. Choose another model."
 msgstr ""
 
-#: src/chunks/FormBuilder/ShareLinkPanel.tsx
+#: src/components/ShareLink.tsx
 msgid "<0/> Copy link"
 msgstr ""
 
@@ -8686,8 +8668,12 @@ msgstr ""
 msgid "from {0}"
 msgstr ""
 
+#. 0: app.name
+#. 0: sharing.app.name
 #. 0: title
 #. 0: title
+#: src/chunks/PluginRuns/CatalogApps.tsx
+#: src/chunks/PluginRuns/CatalogApps.tsx
 #: src/components/Share/ShareDialog.tsx
 #: src/components/Share/ShareDialog.tsx
 msgid "Share {0}"
@@ -8907,6 +8893,7 @@ msgstr ""
 msgid "Discover integrations from this catalog.json. This setting is saved in this browser."
 msgstr ""
 
+#: src/components/Settings/IntegrationSettings.tsx
 #: src/components/Settings/IntegrationSettings.tsx
 msgid "Enter an HTTPS URL or a localhost HTTP URL pointing at a catalog.json file."
 msgstr ""
@@ -9745,6 +9732,7 @@ msgid "Share form"
 msgstr ""
 
 #: src/chunks/FormBuilder/ShareLinkPanel.tsx
+#: src/chunks/PluginRuns/CatalogApps.tsx
 msgid "<0/> Share"
 msgstr ""
 
@@ -11407,16 +11395,11 @@ msgid "This is taking longer than usual. {0}"
 msgstr ""
 
 #: src/routes/IntegrationStore.tsx
-#: src/routes/IntegrationStore.tsx
 msgid "Loading integrations…"
 msgstr ""
 
 #: src/routes/IntegrationStore.tsx
 msgid "<0/> Show experimental plugins"
-msgstr ""
-
-#: src/routes/IntegrationStore.tsx
-msgid "Discover integrations"
 msgstr ""
 
 #: src/routes/SyncRoute.tsx
@@ -13328,4 +13311,73 @@ msgstr ""
 #. 0: subject
 #: src/views/OntologyPage/sortSubjectList.ts
 msgid "Timed out fetching {0}"
+msgstr ""
+
+#: src/components/MetaSetter.tsx
+#: src/components/SideBar/AccountMenu.tsx
+#: src/routes/IntegrationStore.tsx
+msgid "Apps"
+msgstr ""
+
+#: src/routes/IntegrationStore.tsx
+msgid "Install apps into your drive, connect integrations and keep your work in sync. Add automations when you need them."
+msgstr ""
+
+#: src/routes/IntegrationStore.tsx
+msgid "Search apps"
+msgstr ""
+
+#: src/routes/IntegrationStore.tsx
+msgid "Search apps, integrations, domains or standards"
+msgstr ""
+
+#: src/routes/IntegrationStore.tsx
+msgid "Loading apps…"
+msgstr ""
+
+#: src/routes/IntegrationStore.tsx
+msgid "Discover apps"
+msgstr ""
+
+#: src/chunks/PluginRuns/AddMarketplaceDialog.tsx
+msgid "That marketplace link is not a valid catalog URL."
+msgstr ""
+
+#. 0: host
+#: src/chunks/PluginRuns/AddMarketplaceDialog.tsx
+msgid "Add marketplace {0}?"
+msgstr ""
+
+#: src/chunks/PluginRuns/AddMarketplaceDialog.tsx
+msgid "Apps from it can be installed into your drives. Only add marketplaces you trust."
+msgstr ""
+
+#: src/chunks/PluginRuns/AddMarketplaceDialog.tsx
+msgid "Add marketplace"
+msgstr ""
+
+#. 0: sharing.app.name
+#: src/chunks/PluginRuns/CatalogApps.tsx
+msgid "QR code for the {0} link"
+msgstr ""
+
+#: src/components/Settings/IntegrationSettings.tsx
+msgid "<0/> Remove"
+msgstr ""
+
+#: src/components/Settings/IntegrationSettings.tsx
+#: src/components/Settings/IntegrationSettings.tsx
+msgid "Marketplaces"
+msgstr ""
+
+#: src/components/Settings/IntegrationSettings.tsx
+msgid "Apps from these catalogs are offered next to the one above. When two have an app with the same name, the one listed first wins. This setting is saved in this browser."
+msgstr ""
+
+#: src/components/Settings/IntegrationSettings.tsx
+msgid "Add marketplace URL"
+msgstr ""
+
+#: src/components/SideBar/AccountMenu.tsx
+msgid "Discover apps and integrations"
 msgstr ""
