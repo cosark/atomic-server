@@ -92,7 +92,8 @@ function Crumbs({
   const [read] = useTitle(resource);
   const [readParent] = useString(resource, core.properties.parent);
   // Not read yet: what the app said it is.
-  const hint = resource.loading || resource.new ? hints.get(subject) : undefined;
+  const hint =
+    resource.loading || resource.new ? hints.get(subject) : undefined;
   const title = hint?.title || read;
   const parent = readParent ?? hint?.parent;
 
