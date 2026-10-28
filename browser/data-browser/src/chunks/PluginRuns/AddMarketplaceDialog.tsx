@@ -42,10 +42,7 @@ export function AddMarketplaceDialog({
       }),
     [navigate],
   );
-  const [dialogProps, show, close] = useDialog({
-    onCancel: dropParam,
-    onSuccess: dropParam,
-  });
+  const [dialogProps, show, close] = useDialog({ onCancel: dropParam });
 
   useEffect(() => {
     if (host) {
@@ -79,6 +76,9 @@ export function AddMarketplaceDialog({
         <Button
           onClick={() => {
             addMarketplace(url);
+            // The page stops rendering this dialog as soon as the marketplace
+            // is listed, so the parameter goes now, not on close.
+            dropParam();
             close(true);
           }}
         >
