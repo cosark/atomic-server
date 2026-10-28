@@ -1417,8 +1417,13 @@ async fn e2e_an_invite_without_a_reachable_device_says_the_device_is_offline() {
     // "offline" from one that did not.
     let carol = crate::agents::Agent::new(Some("carol")).unwrap();
     let stranger = token_for(&p, &carol, false, in_an_hour());
-    let err = invite::redeem_at_any(&p.ep_b, &p.db_b, &[p.node_id_a.clone()], &stranger)
-        .await
-        .expect_err("refused");
+    let err = invite::redeem_at_any(
+        &p.ep_b,
+        &p.db_b,
+        std::slice::from_ref(&p.node_id_a),
+        &stranger,
+    )
+    .await
+    .expect_err("refused");
     assert!(err.reached);
 }
