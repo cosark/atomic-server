@@ -212,6 +212,7 @@ async function startForIdentity(
     discardUndecryptable,
     // Fetched and compiled once for the whole page, starting in index.html.
     wasmModule: compiledAtomicWasm(),
+    onLeaderTimeout: e => store.notifyError(e),
   });
   currentWorker = clientDb;
 

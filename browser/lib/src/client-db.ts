@@ -193,6 +193,9 @@ export interface ClientDbOptions {
    *  index.html), and a compiled module crosses into the worker for free. A
    *  rejection, or none, falls back to the worker fetching it itself. */
   wasmModule?: Promise<WebAssembly.Module | undefined>;
+  /** Called once when a request to the leader times out, so the person sees
+   *  that the local database stopped answering. */
+  onLeaderTimeout?: (error: Error) => void;
 }
 
 type PendingRequest = {
@@ -429,6 +432,7 @@ export class ClientDbWorker {
   private baseUrl: string | undefined;
   private lastLeaderAnnounceAt = 0;
   private probingLeader = false;
+  private timeoutReported = false;
 
   private async doInit(baseUrl?: string): Promise<void> {
     if (!this.workerUrl) {
@@ -1652,11 +1656,23 @@ export class ClientDbWorker {
 
         if (this.pending.has(id)) {
           this.pending.delete(id);
-          reject(
-            new Error(
-              `ClientDb sendToLeader timed out after ${timeoutMs / 1000}s — leader tab may have closed.`,
-            ),
+          const error = new Error(
+            `ClientDb sendToLeader timed out after ${timeoutMs / 1000}s — leader tab may have closed.`,
           );
+
+          // The leader answers pings from its main thread even when its worker
+          // is hung, so the probe never reclaims it. Take the lock now, or the
+          // next call waits the full timeout again.
+          if (this.role === 'follower' && !this.destroyed) {
+            this.requestLeaderLock(this.baseUrl, true);
+          }
+
+          if (!this.timeoutReported) {
+            this.timeoutReported = true;
+            this.opts.onLeaderTimeout?.(error);
+          }
+
+          reject(error);
         }
       }, timeoutMs);
 

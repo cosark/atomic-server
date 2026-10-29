@@ -13381,3 +13381,7 @@ msgstr ""
 #: src/components/SideBar/AccountMenu.tsx
 msgid "Discover apps and integrations"
 msgstr ""
+
+#: src/helpers/managed/vaultAutoBackup.ts
+msgid "Cloud Vault is full, so this drive is not being backed up. Free up space or upgrade your plan."
+msgstr ""

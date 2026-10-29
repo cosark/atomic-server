@@ -10,6 +10,7 @@ import {
   dataBrowser,
   server,
   Image,
+  isMangledLegacySubject,
 } from '@tomic/react';
 /** Same palette as the collaborative editor's cursors, but picked
  *  deterministically per agent so a user keeps their color across
@@ -55,7 +56,10 @@ export function AgentAvatar({
   online = false,
   following = false,
 }: AgentAvatarProps): React.JSX.Element {
-  const agentResource = useResource(agentSubject);
+  // A mangled legacy subject can never resolve; asking only toasts a 404.
+  const agentResource = useResource(
+    isMangledLegacySubject(agentSubject) ? undefined : agentSubject,
+  );
   const [name] = useTitle(agentResource);
   const [iconFile] = useSubject(agentResource, dataBrowser.properties.icon);
   const [imageFile] = useString(agentResource, dataBrowser.properties.image);
