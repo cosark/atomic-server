@@ -95,6 +95,7 @@ import {
   isAgentSubject,
   agentPublicKey,
   isAtomicIdentifier,
+  isMangledLegacySubject,
   isBlobSubject,
   isLensSubject,
   isPropertySubject,
@@ -1918,7 +1919,7 @@ export class Store {
         resource.setLastCommitValue(commitId);
         resource.applyToStore('local-acked', { commitId });
         resource.markSynced();
-        await this.maybePushBlobForResource(resource).catch(() => undefined);
+        await this.pushBlobOrNotify(resource);
         // wasNew pipeline — first-time subscribe + save batched children
         this.subscribeWebSocket(subject);
         // The genesis POST IS a save — fire `ResourceSaved` so listeners
@@ -2196,7 +2197,7 @@ export class Store {
     }
 
     this.notifyResourceSaved(resource);
-    await this.maybePushBlobForResource(resource).catch(() => undefined);
+    await this.pushBlobOrNotify(resource);
 
     this.emitSyncStatus();
   };
@@ -6635,10 +6636,7 @@ export class Store {
   ): boolean {
     if (isAtomicIdentifier(subject)) return true;
 
-    // The migration's mangled spelling. It survives serialization as a path
-    // segment containing a colon, which is not a subject this server can
-    // resolve — it is the `staging` subdomain welded onto the path.
-    if (/\/[^/]+:\//.test(subject.replace(/^https?:\/\//, ''))) return false;
+    if (isMangledLegacySubject(subject)) return false;
 
     try {
       const { origin } = new URL(subject);
@@ -7611,14 +7609,35 @@ export class Store {
     // here meant tests/embedders overriding the store's fetch couldn't
     // observe or intercept blob pushes at all.
     const fetchImpl = this.injectedFetch ?? fetch;
-    await fetchImpl(url, {
+    const response = await fetchImpl(url, {
       method: 'PUT',
       // Cast: TS lib.dom marks Uint8Array<SharedArrayBuffer> incompatible with
       // BodyInit/BlobPart; at runtime our bytes are ArrayBuffer-backed.
       body: bytes as unknown as BodyInit,
       headers: { 'Content-Type': 'application/octet-stream' },
     });
+
+    if (!response.ok) {
+      throw new Error(
+        `Uploading the file to the server failed (HTTP ${response.status}). ` +
+          `It stays on this device.`,
+      );
+    }
   }
+
+  /** Push a resource's blob; a failure is shown once per resource, not per retry. */
+  private pushBlobOrNotify(resource: Resource): Promise<void> {
+    return this.maybePushBlobForResource(resource).catch(e => {
+      console.warn('[Store] blob push failed', resource.subject, e);
+
+      if (this._notifiedBlobFailures.has(resource.subject)) return;
+
+      this._notifiedBlobFailures.add(resource.subject);
+      this.notifyError(e instanceof Error ? e : new Error(String(e)));
+    });
+  }
+
+  private _notifiedBlobFailures = new Set<string>();
 
   /**
    * Uploads files. The bytes are hashed (BLAKE3), stored in the local blob
@@ -7630,6 +7649,7 @@ export class Store {
   public async uploadFiles(
     files: FileOrFileLike[],
     parent: string,
+    opts: { optimistic?: boolean } = {},
   ): Promise<string[]> {
     const agent = this.getAgent();
 
@@ -7734,7 +7754,18 @@ export class Store {
         resource.stashGenesis(genesis);
       }
 
-      await resource.save();
+      if (opts.optimistic) {
+        // The bytes are local, so the caller can show the file now. A failed
+        // sync is toasted, never swallowed.
+        void resource
+          .save()
+          .catch(e =>
+            this.notifyError(e instanceof Error ? e : new Error(String(e))),
+          );
+      } else {
+        await resource.save();
+      }
+
       // The blob bytes are pushed to the server from the outbox drain
       // (via `Store.maybePushBlobForResource`) — that path covers both the
       // online-save case here AND the offline → reconnect retry path, where

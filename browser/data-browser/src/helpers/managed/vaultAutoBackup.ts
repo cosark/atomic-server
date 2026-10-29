@@ -426,6 +426,7 @@ async function ensureVaultBackupOnce(
     });
     signal.throwIfAborted();
     notifyVaultChanged(driveSubject);
+    quotaNotified.delete(driveSubject);
 
     return outcome;
   } catch (error) {
@@ -446,6 +447,20 @@ async function ensureVaultBackupOnce(
 
     console.warn('[cloud-vault] backup failed', error);
 
+    // A full vault is not something a retry fixes; say so once per drive
+    // until a backup succeeds again, instead of failing quietly every minute.
+    if (
+      /quota exceeded/i.test(String((error as Error)?.message)) &&
+      !quotaNotified.has(driveSubject)
+    ) {
+      quotaNotified.add(driveSubject);
+      store.notifyError(
+        new Error(
+          'Cloud Vault is full, so this drive is not being backed up. Free up space or upgrade your plan.',
+        ),
+      );
+    }
+
     return {
       status: 'failed',
       error: error instanceof Error ? error : new Error(String(error)),
@@ -457,6 +472,9 @@ async function ensureVaultBackupOnce(
       window.removeEventListener('pagehide', stop);
   }
 }
+
+/** Drives whose "vault full" failure was already shown. */
+const quotaNotified = new Set<string>();
 
 /** Incremental packs make short idle backups cheap; unchanged drives upload nothing. */
 export const AUTO_BACKUP_IDLE_MS = 5_000;

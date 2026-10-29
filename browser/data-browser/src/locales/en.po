@@ -13342,3 +13342,7 @@ msgstr "Latest changes"
 #: src/views/OntologyPage/sortSubjectList.ts
 msgid "Timed out fetching {0}"
 msgstr "Timed out fetching {0}"
+
+#: src/helpers/managed/vaultAutoBackup.ts
+msgid "Cloud Vault is full, so this drive is not being backed up. Free up space or upgrade your plan."
+msgstr "Cloud Vault is full, so this drive is not being backed up. Free up space or upgrade your plan."
